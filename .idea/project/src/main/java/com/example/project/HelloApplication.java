@@ -4,7 +4,9 @@ import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -17,181 +19,213 @@ import java.util.Random;
 
 public class HelloApplication extends Application {
 
+    private enum GameState { PLAYING, SHOP, GAMEOVER }
+    private GameState currentState = GameState.PLAYING;
+
     private boolean isHacking = false;
     private double progress = 0.0;
-    private boolean isGameOver = false;
+    private int currentLevel = 1;
 
-    // 事件狀態變數
-    private boolean isAdminTracking = false;
+    private int darkCoins = 0;
+    private int upgClick = 0;
+    private int upgSpeed = 0;
+
     private boolean isFirewallFight = false;
-    private long lastEventTime = 0;
-
-    // 防火牆拔河進度 (0.0 被阻斷, 1.0 成功癱瘓)
     private double firewallProgress = 0.5;
+
+    private long lastEventTime = 0;
+    private long nextEventTime = 0;
+    private int nextEventType = 0;
 
     private final Random random = new Random();
 
-    // UI 元件
     private Label progressDisplay;
     private Label matrixBg;
     private Label statusLabel;
+    private Label crtOverlay;
+    private Label uiBorder;
+    private String currentTargetText = "";
 
-    // 警報圖層
-    private StackPane adminLayer;
     private StackPane firewallLayer;
+    private StackPane shopLayer;
     private Label firewallBarDisplay;
+    private Label coinDisplay;
 
     @Override
     public void start(Stage stage) {
         StackPane root = new StackPane();
-        root.setStyle("-fx-background-color: #000000;");
+        root.setStyle("-fx-background-color: #000100;");
 
-        // 1. 亂碼背景層
         matrixBg = new Label();
-        matrixBg.setTextFill(Color.rgb(0, 100, 0, 0.3));
+        matrixBg.setTextFill(Color.rgb(0, 150, 0, 0.15));
         matrixBg.setFont(Font.font("Consolas", 12));
         matrixBg.setAlignment(Pos.TOP_LEFT);
         matrixBg.setMaxWidth(Double.MAX_VALUE);
+        matrixBg.setMaxHeight(Double.MAX_VALUE);
 
-        // 2. 主 UI 佈局
-        VBox vbox = new VBox(20);
-        vbox.setAlignment(Pos.CENTER);
+        crtOverlay = new Label();
+        crtOverlay.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        crtOverlay.setStyle("-fx-background-color: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 1px, rgba(0,30,0,0.05) 2px, rgba(0,30,0,0.05) 3px); -fx-effect: blooms(0.5);");
+        crtOverlay.setMouseTransparent(true);
 
-        statusLabel = new Label(">>> 終端機就緒。長按滑鼠左鍵開始下載 <<<");
+        uiBorder = new Label("╔════════════════════════════════════════════╗\n" +
+                "║                                            ║\n" +
+                "║                                            ║\n" +
+                "║                                            ║\n" +
+                "╚════════════════════════════════════════════╝");
+        uiBorder.setTextFill(Color.rgb(0, 255, 0, 0.5));
+        uiBorder.setFont(Font.font("Consolas", 20));
+        uiBorder.setAlignment(Pos.CENTER);
+
+        VBox mainBox = new VBox(15);
+        mainBox.setAlignment(Pos.CENTER);
+        mainBox.setMaxSize(600, 200);
+
+        statusLabel = new Label("");
         statusLabel.setTextFill(Color.LIME);
-        statusLabel.setFont(Font.font("Consolas", 20));
+        statusLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
+        statusLabel.setWrapText(true);
+        statusLabel.setAlignment(Pos.CENTER);
+        statusLabel.setMaxWidth(580);
+        typeWriterUpdate(">>> 系統核心連線... 長按 [滑鼠左鍵] 開始注入資料。");
 
-        progressDisplay = new Label("[....................] 0%");
+        progressDisplay = new Label("LEVEL 1 [....................] 0%");
         progressDisplay.setTextFill(Color.LIME);
-        progressDisplay.setFont(Font.font("Consolas", 30));
+        progressDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 28));
+        progressDisplay.setStyle("-fx-effect: dropshadow(three-pass-box, rgba(0,255,0,0.8), 10, 0, 0, 0);");
 
-        vbox.getChildren().addAll(statusLabel, progressDisplay);
+        mainBox.getChildren().addAll(statusLabel, progressDisplay);
+        StackPane uiContainer = new StackPane(uiBorder, mainBox);
 
-        // 3. 管理員巡邏圖層 (紅光)
-        adminLayer = new StackPane();
-        adminLayer.setStyle("-fx-background-color: rgba(255, 0, 0, 0.4);");
-        Label adminText = new Label("⚠ ADMIN TRACKING ⚠\n立刻停止下載！");
-        adminText.setTextFill(Color.WHITE);
-        adminText.setFont(Font.font("Consolas", FontWeight.BOLD, 50));
-        adminText.setAlignment(Pos.CENTER);
-        adminLayer.getChildren().add(adminText);
-        adminLayer.setVisible(false);
-
-        // 4. 防火牆圖層 (藍光)
         firewallLayer = new StackPane();
-        firewallLayer.setStyle("-fx-background-color: rgba(0, 50, 150, 0.6);"); // 半透明藍
-        VBox firewallBox = new VBox(20);
-        firewallBox.setAlignment(Pos.CENTER);
-        Label firewallTitle = new Label("--- FIREWALL DETECTED ---\n狂點右鍵發送垃圾封包癱瘓它！");
-        firewallTitle.setTextFill(Color.CYAN);
-        firewallTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
-        firewallTitle.setAlignment(Pos.CENTER);
-
+        firewallLayer.setStyle("-fx-background-color: rgba(0, 80, 255, 0.6); -fx-effect: blooms(0.8);");
+        VBox fwBox = new VBox(20);
+        fwBox.setAlignment(Pos.CENTER);
+        Label fwTitle = new Label("--- FIREWALL INTERCEPT ---");
+        fwTitle.setTextFill(Color.CYAN);
+        fwTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 35));
+        Label fwSub = new Label("Mash [SPACEBAR] to Flood Network!");
+        fwSub.setTextFill(Color.WHITE);
+        fwSub.setFont(Font.font("Consolas", 20));
         firewallBarDisplay = new Label("[||||||||||..........]");
         firewallBarDisplay.setTextFill(Color.WHITE);
-        firewallBarDisplay.setFont(Font.font("Consolas", 40));
-
-        firewallBox.getChildren().addAll(firewallTitle, firewallBarDisplay);
-        firewallLayer.getChildren().add(firewallBox);
+        firewallBarDisplay.setFont(Font.font("Consolas", 45));
+        fwBox.getChildren().addAll(fwTitle, fwSub, firewallBarDisplay);
+        firewallLayer.getChildren().add(fwBox);
         firewallLayer.setVisible(false);
 
-        // 將所有圖層疊起來
-        root.getChildren().addAll(matrixBg, vbox, adminLayer, firewallLayer);
+        shopLayer = new StackPane();
+        shopLayer.setStyle("-fx-background-color: #050505;");
+        VBox shopBox = new VBox(20);
+        shopBox.setAlignment(Pos.CENTER);
+
+        Label shopTitle = new Label("--- THE BLACK MARKET ---");
+        shopTitle.setTextFill(Color.LIME);
+        shopTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 40));
+
+        coinDisplay = new Label("DarkCoins: 0 ¢");
+        coinDisplay.setTextFill(Color.GOLD);
+        coinDisplay.setFont(Font.font("Consolas", 25));
+
+        Button btnClick = createShopButton("重磅封包 (空白鍵威力)", 100);
+        btnClick.setOnAction(e -> { if(buy(100)) upgClick++; updateShop(btnClick, null); });
+
+        Button btnSpeed = createShopButton("注入加速 (下載速度)", 150);
+        btnSpeed.setOnAction(e -> { if(buy(150)) upgSpeed++; updateShop(null, btnSpeed); });
+
+        Button btnNext = new Button(">>> 繼續潛入下一層 <<<");
+        btnNext.setStyle("-fx-background-color: black; -fx-text-fill: cyan; -fx-border-color: cyan; -fx-font-family: 'Consolas'; -fx-font-size: 20px;");
+        btnNext.setOnAction(e -> {
+            currentState = GameState.PLAYING;
+            shopLayer.setVisible(false);
+            uiContainer.setVisible(true);
+            scheduleNextEvent(System.nanoTime());
+            root.requestFocus();
+        });
+
+        shopBox.getChildren().addAll(shopTitle, coinDisplay, btnClick, btnSpeed, btnNext);
+        shopLayer.getChildren().add(shopBox);
+        shopLayer.setVisible(false);
+
+        root.getChildren().addAll(matrixBg, uiContainer, crtOverlay, firewallLayer, shopLayer);
 
         Scene scene = new Scene(root, 800, 600);
 
-        // 攔截器：滑鼠點擊
         scene.setOnMousePressed(e -> {
-            if (isGameOver) return;
-
-            // 左鍵：正常下載
+            if (currentState != GameState.PLAYING) return;
             if (e.getButton() == MouseButton.PRIMARY) {
                 isHacking = true;
-            }
-            // 右鍵：對抗防火牆
-            else if (e.getButton() == MouseButton.SECONDARY && isFirewallFight) {
-                firewallProgress += 0.05; // 每次點擊增加 5% 進度
-                updateFirewallUI();
+                root.requestFocus();
             }
         });
 
-        // 攔截器：滑鼠放開
         scene.setOnMouseReleased(e -> {
-            if (e.getButton() == MouseButton.PRIMARY && !isGameOver) {
+            if (currentState != GameState.PLAYING) return;
+            if (e.getButton() == MouseButton.PRIMARY) {
                 isHacking = false;
-                if (!isAdminTracking && !isFirewallFight) {
-                    statusLabel.setText(">>> 下載暫停。請繼續長按左鍵 <<<");
+                if (!isFirewallFight) {
+                    typeWriterUpdate(">>> PAUSED... Re-engage mouse button.");
                 }
             }
         });
 
-        // 主迴圈引擎
+        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            if (currentState != GameState.PLAYING) return;
+            if (e.getCode() == KeyCode.SPACE && isFirewallFight) {
+                firewallProgress += 0.05 + (upgClick * 0.015);
+                updateFirewallUI();
+                e.consume();
+            }
+        });
+
         AnimationTimer gameLoop = new AnimationTimer() {
             private long lastBgUpdate = 0;
 
             @Override
             public void handle(long now) {
-                if (isGameOver) return;
-                if (lastEventTime == 0) lastEventTime = now;
+                if (currentState == GameState.GAMEOVER) return;
 
-                // 更新背景亂碼
                 if (now - lastBgUpdate > 100_000_000) {
                     matrixBg.setText(generateRandomCode());
                     lastBgUpdate = now;
                 }
 
-                // 隨機觸發突發事件
-                if (!isAdminTracking && !isFirewallFight) {
-                    if (now - lastEventTime > 3_000_000_000L + random.nextInt(2_000_000_000)) {
-                        double eventRoll = random.nextDouble();
-                        if (eventRoll < 0.25) {
-                            // 25% 機率觸發巡邏 (紅光)
-                            isAdminTracking = true;
-                            adminLayer.setVisible(true);
-                            lastEventTime = now;
-                        } else if (eventRoll < 0.5) {
-                            // 25% 機率觸發防火牆 (藍光)
+                updateAesthetics(now);
+
+                if (currentState == GameState.SHOP) return;
+
+                if (!isFirewallFight) {
+                    if (nextEventTime == 0) scheduleNextEvent(now);
+
+                    if (now >= nextEventTime) {
+                        if (nextEventType == 2) {
                             isFirewallFight = true;
-                            firewallProgress = 0.5; // 重置拔河進度到中間
+                            firewallProgress = 0.5;
                             firewallLayer.setVisible(true);
                             updateFirewallUI();
                             lastEventTime = now;
-                        } else {
-                            lastEventTime = now;
+                            root.requestFocus();
                         }
+                        nextEventTime = 0;
                     }
                 }
-                // 處理紅光巡邏
-                else if (isAdminTracking) {
-                    if (isHacking) {
-                        triggerGameOver(">>> FAILED <<<\nIP 已被鎖定，系統斷線。");
-                        return;
-                    }
-                    if (now - lastEventTime > 2_000_000_000L) {
-                        isAdminTracking = false;
-                        adminLayer.setVisible(false);
-                        lastEventTime = now;
-                        statusLabel.setText(">>> 巡邏結束，安全。請繼續下載。 <<<");
-                    }
-                }
-                // 處理藍光防火牆拔河
                 else if (isFirewallFight) {
-                    firewallProgress -= 0.003; // 防火牆自動扣除你的進度 (系統阻力)
+                    firewallProgress -= (0.002 + (currentLevel * 0.0005));
                     updateFirewallUI();
 
                     if (firewallProgress <= 0) {
-                        triggerGameOver(">>> FAILED <<<\n防火牆已將您的連線阻斷。");
+                        triggerGameOver(">>> FAILED <<<\nFIREWALL BLOCKED CONNECTION.");
                     } else if (firewallProgress >= 1.0) {
                         isFirewallFight = false;
                         firewallLayer.setVisible(false);
-                        lastEventTime = now;
-                        statusLabel.setText(">>> 防火牆已癱瘓！請繼續下載。 <<<");
+                        typeWriterUpdate(">>> FIREWALL NEUTRALIZED.");
+                        scheduleNextEvent(now);
                     }
                 }
 
-                // 更新正常下載進度
-                if (isHacking && progress < 1.0 && !isAdminTracking && !isFirewallFight) {
-                    progress += 0.002;
+                if (isHacking && progress < 1.0 && !isFirewallFight) {
+                    // 下載速度加成調高五倍
+                    progress += 0.002 + (upgSpeed * 0.005);
                     updateASCIIProgress();
                 }
             }
@@ -199,8 +233,42 @@ public class HelloApplication extends Application {
         gameLoop.start();
 
         stage.setScene(scene);
-        stage.setTitle("駭客入侵：防火牆攻防戰 (System Hack)");
+        stage.setTitle("System Hack - Action Edition");
         stage.show();
+        root.requestFocus();
+    }
+
+    private void scheduleNextEvent(long now) {
+        nextEventTime = now + 3_000_000_000L + random.nextInt(2_000_000_000);
+        double roll = random.nextDouble();
+        if (roll < 0.4) nextEventType = 2; // 40% 機率遇到防火牆
+        else nextEventType = 0;
+    }
+
+    private void updateAesthetics(long now) {
+        double borderOpacity = 0.4 + (Math.sin(now / 200_000_000.0) * 0.2);
+        if (isHacking && !isFirewallFight) {
+            double r = Math.min(1.0, (currentLevel - 1) * 0.1);
+            uiBorder.setTextFill(Color.color(r, 1.0 - r, 0.0, 0.6 + (progress * 0.4)));
+        } else if (isFirewallFight) {
+            uiBorder.setTextFill(Color.color(0.0, 0.8, 1.0, 0.8));
+        } else {
+            uiBorder.setTextFill(Color.rgb(0, 255, 0, borderOpacity));
+        }
+
+        if (!statusLabel.getText().equals(currentTargetText)) {
+            int currentLen = statusLabel.getText().length();
+            if (currentLen < currentTargetText.length()) {
+                statusLabel.setText(currentTargetText.substring(0, currentLen + 1));
+            }
+        }
+    }
+
+    private void typeWriterUpdate(String text) {
+        this.currentTargetText = text;
+        if (!text.startsWith(statusLabel.getText().replace("▋", ""))) {
+            statusLabel.setText("");
+        }
     }
 
     private void updateASCIIProgress() {
@@ -209,20 +277,28 @@ public class HelloApplication extends Application {
         for (int i = 0; i < 20; i++) sb.append(i < bars ? "|" : ".");
         sb.append("] ").append((int)(progress * 100)).append("%");
 
-        progressDisplay.setText(sb.toString());
-        statusLabel.setText(">>> 系統入侵中... 資料下載中 [Hold] <<<");
+        progressDisplay.setText("LEVEL " + currentLevel + " " + sb.toString());
+        statusLabel.setText(">>> INTRUDING SYSTEM... BREACHING LAYER " + currentLevel + " [HOLDING]");
 
         if (progress >= 1.0) {
-            isGameOver = true;
-            isHacking = false;
-            statusLabel.setText(">>> 任務完成！機密資料已全數下載 <<<");
-            statusLabel.setTextFill(Color.CYAN);
-            adminLayer.setVisible(false);
-            firewallLayer.setVisible(false);
+            triggerLevelClear();
         }
     }
 
-    // 更新防火牆拔河的 ASCII 介面
+    private void triggerLevelClear() {
+        isHacking = false;
+        int earned = currentLevel * 100;
+        darkCoins += earned;
+        currentLevel++;
+        progress = 0.0;
+
+        coinDisplay.setText("DarkCoins: " + darkCoins + " ¢");
+        typeWriterUpdate(">>> LAYER CLEARED! Acquired " + earned + "¢. Entering Black Market...");
+
+        currentState = GameState.SHOP;
+        shopLayer.setVisible(true);
+    }
+
     private void updateFirewallUI() {
         int bars = (int) (firewallProgress * 20);
         StringBuilder sb = new StringBuilder("[");
@@ -232,15 +308,40 @@ public class HelloApplication extends Application {
     }
 
     private void triggerGameOver(String reason) {
-        isGameOver = true;
+        currentState = GameState.GAMEOVER;
         isHacking = false;
 
-        adminLayer.setStyle("-fx-background-color: rgba(139, 0, 0, 0.9);");
-        ((Label)adminLayer.getChildren().get(0)).setText(reason);
-        ((Label)adminLayer.getChildren().get(0)).setTextFill(Color.RED);
+        StackPane gameOverLayer = new StackPane();
+        gameOverLayer.setStyle("-fx-background-color: rgba(139, 0, 0, 0.9);");
+        Label overText = new Label(reason);
+        overText.setTextFill(Color.RED);
+        overText.setFont(Font.font("Consolas", FontWeight.BOLD, 45));
+        overText.setAlignment(Pos.CENTER);
+        gameOverLayer.getChildren().add(overText);
 
+        ((StackPane) firewallLayer.getParent()).getChildren().add(gameOverLayer);
         firewallLayer.setVisible(false);
-        adminLayer.setVisible(true);
+        shopLayer.setVisible(false);
+    }
+
+    private Button createShopButton(String name, int cost) {
+        Button btn = new Button(name + " [Cost: " + cost + "¢]");
+        btn.setStyle("-fx-background-color: #111; -fx-text-fill: lime; -fx-border-color: lime; -fx-font-family: 'Consolas'; -fx-font-size: 16px;");
+        return btn;
+    }
+
+    private boolean buy(int cost) {
+        if (darkCoins >= cost) {
+            darkCoins -= cost;
+            coinDisplay.setText("DarkCoins: " + darkCoins + " ¢");
+            return true;
+        }
+        return false;
+    }
+
+    private void updateShop(Button c, Button s) {
+        if (c != null) c.setText("重磅封包 (Lv." + upgClick + ") [已升級]");
+        if (s != null) s.setText("注入加速 (Lv." + upgSpeed + ") [已升級]");
     }
 
     private String generateRandomCode() {
