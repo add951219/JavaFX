@@ -179,7 +179,9 @@ public class HelloApplication extends Application {
                 engine.comboFrames = 0;
                 engine.comboMultiplier = 1.0;
             }
-            ui.comboDisplay.setText(String.format("COMBO: x%.1f", engine.comboMultiplier));
+
+            // 修正：呼叫 UIManager 的色彩霓虹流動方法，將 UI 更新邏輯推回 View 層
+            ui.updateComboDisplay(engine.comboMultiplier);
 
             if (engine.isFirewallFight) {
                 engine.firewallProgress -= (0.003 + (p.currentLevel * p.routeDiffMult * 0.0008));
@@ -252,40 +254,30 @@ public class HelloApplication extends Application {
     public void triggerCheckpointEvent() {
         ui.shakeScreen();
         boolean isBoss = engine.isBossLevel(p.currentLevel);
-
-        double lagModifier = (engine.activeGlitch == HackEngine.GlitchType.NETWORK_LAG) ? 0.6 : 1.0;
+        long now = System.nanoTime();
 
         if (isBoss) {
             engine.isFirewallFight = true; engine.firewallProgress = 0.5 + (p.talentWeakFW * 0.05); ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
             engine.isInterceptFight = true; engine.sequenceIndex = 0;
             engine.targetSequence = "WASD";
             ui.updateInterceptUI();
-            engine.interceptDeadline = System.nanoTime() + (long)(5.0 * 1_000_000_000L);
+            engine.interceptDeadline = now + (long)(5.0 * 1_000_000_000L);
             ui.interceptLayer.setVisible(true);
         } else {
             int rand = engine.random.nextInt(3);
             if (rand == 0) {
                 engine.isFirewallFight = true; engine.firewallProgress = 0.5 + (p.talentWeakFW * 0.05); ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
             } else if (rand == 1) {
-                engine.isInterceptFight = true; engine.sequenceIndex = 0;
-                int len = (int)(4 + (p.currentLevel * p.routeDiffMult / 2));
-                String[] pool = {"W", "A", "S", "D"}; StringBuilder sb = new StringBuilder();
-                for (int i=0; i<len; i++) sb.append(pool[engine.random.nextInt(pool.length)]);
-                engine.targetSequence = sb.toString(); ui.updateInterceptUI();
-
-                engine.interceptDeadline = System.nanoTime() + (long)((Math.max(1.5, 5.0 - p.currentLevel * 0.2)) * 1_000_000_000L * lagModifier);
+                // 修正：改由大腦邏輯層 (engine) 全權負責處理隨機密碼與時間壓縮計算
+                engine.startInterceptEvent(p, now);
+                ui.updateInterceptUI();
                 ui.interceptLayer.setVisible(true);
             } else {
-                engine.isDecryptFight = true; engine.isDecryptFlashed = false; engine.decryptInput = "";
-                int len = Math.min(6, 3 + (p.currentLevel / 3));
-                engine.decryptTarget = engine.generateAlphanumeric(len);
+                // 修正：改由大腦邏輯層 (engine) 全權負責處理隨機解密文字與天賦時間堆疊計算
+                engine.startDecryptEvent(p, now);
                 ui.decryptTargetDisplay.setText(engine.decryptTarget);
                 ui.updateDecryptUI();
-                long now = System.nanoTime();
                 ui.decryptLayer.setVisible(true);
-
-                engine.decryptFlashEndTime = now + 500_000_000L + (p.talentFlashTime * 150_000_000L);
-                engine.decryptDeadline = now + (long)(5.0 * 1_000_000_000L * lagModifier);
             }
         }
     }
@@ -364,7 +356,6 @@ public class HelloApplication extends Application {
             ui.talentCostLabel.setText("狀態：[ 核心未串接 - 需要解鎖前置等階線路 ]"); ui.talentCostLabel.setTextFill(Color.RED); ui.btnUpgradeTalent.setVisible(false);
         }
 
-        // 新增：文字和按鈕刷新完畢後，觸發 View 的動態淡入特效
         ui.playDescFadeIn();
     }
 

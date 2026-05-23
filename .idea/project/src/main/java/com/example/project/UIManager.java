@@ -318,7 +318,6 @@ public class UIManager {
         treePane.setAlignment(Pos.CENTER);
         treePane.setPrefSize(700, 320);
 
-        // 解密數據面板 (Description Box)
         descBox = new VBox(5);
         descBox.setAlignment(Pos.CENTER);
         descBox.setStyle("-fx-background-color: #160826; -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 15; -fx-max-width: 550;");
@@ -368,12 +367,10 @@ public class UIManager {
         talentButtons.clear();
         talentLines.clear();
 
-        // 核心對齊演算法：利用雙重 Group 進行前後景分層 (Layering)
         Group lineLayer = new Group();
         Group nodeLayer = new Group();
         treeGroup.getChildren().addAll(lineLayer, nodeLayer);
 
-        // 核心中心節點：使用 StackPane 包裹並將 Top-Left 偏移 -40，使 (0,0) 成為中心幾何起點
         StackPane corePane = new StackPane();
         corePane.setMinSize(80, 80);
         corePane.setMaxSize(80, 80);
@@ -392,23 +389,16 @@ public class UIManager {
         corePane.setTranslateY(-40);
         nodeLayer.getChildren().add(corePane);
 
-        // --- 上方分支：控制組件優化 (EMP, 3級) | 圖標：⚡ ---
         buildTalentBranch(1, 3, 270, 70, new Color[]{Color.CYAN, Color.rgb(0, 40, 50)}, 0, 0, "⚡", lineLayer, nodeLayer);
-
-        // --- 左下分支：防火牆漏洞利用 (WeakFW, 5級) | 圖標：🔓 ---
         buildTalentBranch(2, 5, 150, 70, new Color[]{Color.LIME, Color.rgb(0, 40, 0)}, 0, 0, "🔓", lineLayer, nodeLayer);
-
-        // --- 右下分支：緩衝記憶體擴充 (FlashTime, 3級) | 圖標：⏳ ---
         buildTalentBranch(3, 3, 30, 70, new Color[]{Color.ORANGE, Color.rgb(40, 20, 0)}, 0, 0, "⏳", lineLayer, nodeLayer);
     }
 
-    // 將線段與圓圈分流至不同底圖層
     private void buildTalentBranch(int id, int maxLevel, double angle, double startRadius, Color[] colors,
                                    double parentX, double parentY, String iconSymbol, Group lineLayer, Group nodeLayer) {
         double currentParentX = parentX;
         double currentParentY = parentY;
 
-        // 分支文字標籤位置外移
         double labelR = startRadius + (maxLevel * 52) + 25;
         double lx = labelR * Math.cos(Math.toRadians(angle));
         double ly = labelR * Math.sin(Math.toRadians(angle));
@@ -443,14 +433,12 @@ public class UIManager {
                 iconColor = colors[0];
             }
 
-            // 完美對齊關鍵 1：連線由父中心直連子中心，並丟進獨立的 lineLayer 底層，確保線段被壓在圓圈下方！
             Line line = new Line(currentParentX, currentParentY, x, y);
             line.setStrokeWidth(3);
             if (unlocked(id, i)) line.setStroke(colors[0]); else line.setStroke(Color.rgb(70, 70, 70));
             lineLayer.getChildren().add(line);
             talentLines.add(line);
 
-            // 完美對齊關鍵 2：將 nodePane 尺寸鎖定為 40x40，並向左上偏移 -20 半徑，使其幾何中心完美壓在線路上
             StackPane nodePane = new StackPane();
             nodePane.setMinSize(40, 40);
             nodePane.setMaxSize(40, 40);
@@ -495,6 +483,18 @@ public class UIManager {
         if (id == 2) return p.talentWeakFW == level - 1;
         if (id == 3) return p.talentFlashTime == level - 1;
         return false;
+    }
+
+    // === 新增：優化連擊介面的色彩流動與字體特效 ===
+    public void updateComboDisplay(double multiplier) {
+        comboDisplay.setText(String.format("COMBO: x%.1f", multiplier));
+        if (multiplier >= 3.0) {
+            comboDisplay.setTextFill(Color.web("#FF007F")); // 滿能量狂暴霓虹粉
+        } else if (multiplier >= 2.0) {
+            comboDisplay.setTextFill(Color.ORANGE);        // 預警高溫橘
+        } else {
+            comboDisplay.setTextFill(Color.YELLOW);        // 基礎電光黃
+        }
     }
 
     public void playDescFadeIn() {

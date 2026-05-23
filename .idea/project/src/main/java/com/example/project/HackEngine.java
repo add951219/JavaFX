@@ -6,7 +6,7 @@ public class HackEngine {
     public enum GameState { MAIN_MENU, INTRO, PLAYING, PAUSED, ROUTE_SELECT, SHOP, GAMEOVER, TALENT_TREE }
     public GameState currentState = GameState.MAIN_MENU;
 
-    // === 新增：環境詛咒類型 ===
+    // === 環境詛咒類型 ===
     public enum GlitchType { NONE, NETWORK_LAG, VISUAL_DISTORTION, CORE_OVERLOAD }
     public GlitchType activeGlitch = GlitchType.NONE;
 
@@ -55,7 +55,6 @@ public class HackEngine {
         return level % 5 == 0;
     }
 
-    // 新增：每一層隨機生成詛咒的邏輯 (Boss 關卡不疊加詛咒)
     public void rollGlitch(int level) {
         if (isBossLevel(level)) {
             activeGlitch = GlitchType.NONE;
@@ -66,6 +65,39 @@ public class HackEngine {
         else if (r == 2) activeGlitch = GlitchType.VISUAL_DISTORTION;
         else if (r == 3) activeGlitch = GlitchType.CORE_OVERLOAD;
         else activeGlitch = GlitchType.NONE;
+    }
+
+    // === 新增：將 WASD 攔截事件的數學計算徹底封裝 ===
+    public void startInterceptEvent(PlayerStats p, long now) {
+        isInterceptFight = true;
+        sequenceIndex = 0;
+
+        // 計算密碼長度
+        int len = (int)(4 + (p.currentLevel * p.routeDiffMult / 2));
+        String[] pool = {"W", "A", "S", "D"};
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < len; i++) sb.append(pool[random.nextInt(pool.length)]);
+        targetSequence = sb.toString();
+
+        // 套用環境延遲詛咒係數
+        double lagModifier = (activeGlitch == GlitchType.NETWORK_LAG) ? 0.6 : 1.0;
+        double baseTime = Math.max(1.5, 5.0 - p.currentLevel * 0.2);
+        interceptDeadline = now + (long)(baseTime * 1_000_000_000L * lagModifier);
+    }
+
+    // === 新增：將解密矩陣事件的數學計算徹底封裝 ===
+    public void startDecryptEvent(PlayerStats p, long now) {
+        isDecryptFight = true;
+        isDecryptFlashed = false;
+        decryptInput = "";
+
+        int len = Math.min(6, 3 + (p.currentLevel / 3));
+        decryptTarget = generateAlphanumeric(len);
+
+        // 套用天賦加成與延遲詛咒係數
+        double lagModifier = (activeGlitch == GlitchType.NETWORK_LAG) ? 0.6 : 1.0;
+        decryptFlashEndTime = now + 500_000_000L + (p.talentFlashTime * 150_000_000L);
+        decryptDeadline = now + (long)(5.0 * 1_000_000_000L * lagModifier);
     }
 
     public boolean useEMP(PlayerStats p) {
