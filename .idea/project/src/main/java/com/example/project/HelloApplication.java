@@ -12,12 +12,18 @@ import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+// 引入 Java 底層音訊合成器，免除外部 success.mp3 檔案依賴
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.SourceDataLine;
+
 public class HelloApplication extends Application {
 
     public final PlayerStats p = new PlayerStats();
     public final HackEngine engine = new HackEngine();
     public UIManager ui;
 
+    // 永久天賦選擇變數
     private int selectedBranch = 0;
     private int selectedLevel = 0;
     private AudioClip errorSound1, errorSound2, loseSound;
@@ -56,6 +62,34 @@ public class HelloApplication extends Application {
         }
     }
 
+    // 播放打擊成功音效 (利用底層訊號產生器，直接用 Code 模擬出新楓之谷清脆打擊音)
+    public void playSuccessSound() {
+        new Thread(() -> {
+            try {
+                float sampleRate = 44100f;
+                // 建立大約 55 毫秒的清脆短音訊號緩衝區
+                byte[] buf = new byte[2400];
+                for (int i = 0; i < buf.length; i++) {
+                    // 音頻由高亢的 1050Hz 快速向上滑頻至 1250Hz，形成極度清脆的霓虹打擊點擊感
+                    double frequency = 1050.0 + (200.0 * ((double) i / buf.length));
+                    double angle = i / (sampleRate / frequency) * 2.0 * Math.PI;
+                    // 指數型衰減包絡線 (Decay Envelope)，確保收音乾淨且絕不產生爆音
+                    double envelope = Math.exp(-6.5 * i / buf.length);
+                    buf[i] = (byte) (Math.sin(angle) * 35 * envelope);
+                }
+                AudioFormat af = new AudioFormat(sampleRate, 8, 1, true, false);
+                SourceDataLine sdl = AudioSystem.getSourceDataLine(af);
+                sdl.open(af);
+                sdl.start();
+                sdl.write(buf, 0, buf.length);
+                sdl.drain();
+                sdl.close();
+            } catch (Exception e) {
+                System.out.println("動態生成成功音效失敗");
+            }
+        }).start();
+    }
+
     private void setupInputHandlers(Scene scene) {
         scene.setOnMousePressed(e -> {
             if (engine.currentState == HackEngine.GameState.PLAYING && e.getButton() == MouseButton.PRIMARY && !engine.isFirewallFight && !engine.isInterceptFight && !engine.isDecryptFight) {
@@ -67,20 +101,16 @@ public class HelloApplication extends Application {
         scene.setOnKeyPressed(e -> {
             if (!ui.root.isFocused()) ui.root.requestFocus();
             if (engine.currentState == HackEngine.GameState.PLAYING) {
-                // [1] 鍵：施放 EMP 脈衝
                 if (e.getCode() == KeyCode.DIGIT1 || e.getCode() == KeyCode.NUMPAD1) {
                     if (engine.activeGlitch == HackEngine.GlitchType.CORE_OVERLOAD) ui.typeWriterUpdate("⚠ BLOCKED: CORE OVERLOAD ACTIVE ⚠");
                     else if (engine.useEMP(p)) { ui.typeWriterUpdate(">>> EMP DEPLOYED!"); ui.updateShopUI(); ui.updateFirewallUI(); }
                 }
-
-                // === 補回並修復：[2] 鍵使用超頻沙漏緩速邏輯 ===
                 if (e.getCode() == KeyCode.DIGIT2 || e.getCode() == KeyCode.NUMPAD2) {
                     if (engine.useSlow(p)) {
                         ui.typeWriterUpdate(">>> TIME DILATION ACTIVE! COOLDOWN EXTENDED.");
                         ui.updateShopUI();
                     }
                 }
-
                 if (e.getCode() == KeyCode.SPACE && engine.isFirewallFight) {
                     engine.firewallProgress += 0.05 + (p.upgClick * 0.015);
                     ui.updateFirewallUI();
@@ -90,7 +120,10 @@ public class HelloApplication extends Application {
                     String input = e.getText().toUpperCase();
                     if (!input.isEmpty() && engine.sequenceIndex < engine.targetSequence.length()) {
                         if (input.equals(engine.targetSequence.substring(engine.sequenceIndex, engine.sequenceIndex + 1))) {
-                            engine.sequenceIndex++; ui.updateInterceptUI(); ui.playComboHitEffect(engine.comboMultiplier);
+                            engine.sequenceIndex++;
+                            playSuccessSound(); // 敲對 WASD 時，立刻播放清脆的成功音效
+                            ui.updateInterceptUI(); // 內部包含敲對時的跳舞雞霓虹膨脹動畫
+                            ui.playComboHitEffect(engine.comboMultiplier);
                             if (engine.sequenceIndex >= engine.targetSequence.length()) {
                                 engine.isInterceptFight = false; ui.interceptLayer.setVisible(false);
                                 ui.typeWriterUpdate(">>> PACKET SECURED.");
@@ -108,7 +141,10 @@ public class HelloApplication extends Application {
                     else if (code.isDigitKey()) inputChar = code.toString().replace("DIGIT", "");
                     else if (code.isKeypadKey() && code.toString().startsWith("NUMPAD")) inputChar = code.toString().replace("NUMPAD", "");
                     if (!inputChar.isEmpty()) {
-                        engine.decryptInput += inputChar; ui.updateDecryptUI(); ui.playComboHitEffect(engine.comboMultiplier);
+                        engine.decryptInput += inputChar;
+                        playSuccessSound(); // 解密輸入正確字元時也同步播放成功音效
+                        ui.updateDecryptUI(); // 內部包含正確密碼字元的打擊高光動畫
+                        ui.playComboHitEffect(engine.comboMultiplier);
                         if (engine.decryptInput.length() >= engine.decryptTarget.length()) {
                             if (engine.decryptInput.equals(engine.decryptTarget)) {
                                 engine.isDecryptFight = false; ui.decryptLayer.setVisible(false);
@@ -142,8 +178,14 @@ public class HelloApplication extends Application {
                 if (engine.comboMultiplier >= 2.0 && engine.random.nextInt(4) == 0) ui.playComboHitEffect(engine.comboMultiplier);
             } else { engine.comboFrames = 0; engine.comboMultiplier = 1.0; }
             ui.updateComboDisplay(engine.comboMultiplier);
+
             if (engine.isFirewallFight) {
-                engine.firewallProgress -= (0.003 + (p.currentLevel * p.routeDiffMult * 0.0008));
+                // === 平衡性優化：計算基本防火牆扣除速度 ===
+                double drainRate = (0.003 + (p.currentLevel * p.routeDiffMult * 0.0008));
+                if (engine.isBossLevel(p.currentLevel)) {
+                    drainRate *= 0.35; // 核心平衡：將第 5 關 Boss 的扣除速度降到原先的 35%，讓玩家有充裕反應時間兼顧 WASD 輸入
+                }
+                engine.firewallProgress -= drainRate;
                 ui.updateFirewallUI();
                 if (engine.firewallProgress <= 0) triggerGameOver(">>> BLOCKED <<<");
                 else if (engine.firewallProgress >= 1.0) { engine.isFirewallFight = false; ui.firewallLayer.setVisible(false); ui.typeWriterUpdate(">>> FIREWALL SHATTERED."); if(!engine.isInterceptFight) engine.currentSegment++; }
@@ -185,7 +227,10 @@ public class HelloApplication extends Application {
         if (engine.isBossLevel(p.currentLevel)) {
             engine.isFirewallFight = true; engine.firewallProgress = 0.5 + (p.talentWeakFW * 0.05); ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
             engine.isInterceptFight = true; engine.sequenceIndex = 0; engine.targetSequence = "WASD"; ui.updateInterceptUI();
-            engine.interceptDeadline = now + (long)(8.5 * 1_000_000_000L); ui.interceptLayer.setVisible(true);
+
+            // === 平衡性優化：將 Boss 關卡的 WASD 反應極限時間拉長 ===
+            engine.interceptDeadline = now + (long)(14.0 * 1_000_000_000L); // 從原先極難的 8.5 秒延長至 14.0 秒
+            ui.interceptLayer.setVisible(true);
         } else {
             int rand = engine.random.nextInt(3);
             if (rand == 0) { engine.isFirewallFight = true; engine.firewallProgress = 0.5 + (p.talentWeakFW * 0.05); ui.firewallLayer.setVisible(true); ui.updateFirewallUI(); }
