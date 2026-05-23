@@ -7,7 +7,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
-import javafx.scene.media.AudioClip;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -19,13 +18,12 @@ public class HelloApplication extends Application {
     public final HackEngine engine = new HackEngine();
     public UIManager ui;
 
-    // 音效播放器
-    private AudioClip errorSound;
+    // === 新增：選取天賦狀態追蹤暫存變數 ===
+    private int selectedBranch = 0;
+    private int selectedLevel = 0;
 
     @Override
     public void start(Stage stage) {
-        initAudio(); // 載入音效
-
         // 將核心交給 UIManager 進行畫面渲染
         ui = new UIManager(p, engine, this);
         Scene scene = new Scene(ui.root, 800, 600);
@@ -34,30 +32,9 @@ public class HelloApplication extends Application {
         startGameLoop();
 
         stage.setScene(scene);
-        stage.setTitle("Neon Breach - Meta Progression Edition");
+        stage.setTitle("Neon Breach - Cyber Talent Tree Edition");
         stage.show();
-
-        // 初始同步天賦樹資訊
-        ui.updateTalentUI();
         ui.root.requestFocus();
-    }
-
-    // 初始化音效的方法
-    private void initAudio() {
-        try {
-            // 讀取 resources 資料夾下的 error.mp3
-            String soundPath = getClass().getResource("/error.mp3").toExternalForm();
-            errorSound = new AudioClip(soundPath);
-        } catch (Exception e) {
-            System.out.println("找不到音效檔案，請確認 src/main/resources/error.mp3 是否存在！");
-        }
-    }
-
-    // 播放錯誤音效的捷徑
-    private void playErrorSound() {
-        if (errorSound != null) {
-            errorSound.play();
-        }
     }
 
     private void setupInputHandlers(Scene scene) {
@@ -102,7 +79,6 @@ public class HelloApplication extends Application {
                 e.consume();
             }
 
-            // WASD 攔截邏輯
             if (engine.isInterceptFight) {
                 String inputKey = e.getCode().toString();
                 if (engine.sequenceIndex < engine.targetSequence.length()) {
@@ -116,15 +92,11 @@ public class HelloApplication extends Application {
                             ui.typeWriterUpdate(">>> PACKET SECURED.");
                             if(!engine.isFirewallFight) engine.currentSegment++;
                         }
-                    } else if (inputKey.matches("[A-Z]")) {
-                        // 打錯字母時播放音效！
-                        playErrorSound();
                     }
                 }
                 e.consume();
             }
 
-            // 解密矩陣邏輯
             if (engine.isDecryptFight) {
                 if (e.getCode().isLetterKey() || e.getCode().isDigitKey()) {
                     engine.decryptInput += e.getCode().toString();
@@ -138,7 +110,6 @@ public class HelloApplication extends Application {
                             engine.currentSegment++;
                         } else {
                             ui.shakeScreen();
-                            playErrorSound(); // 密碼錯誤時播放音效！
                             engine.decryptInput = "";
                             engine.decryptDeadline -= 1_000_000_000L;
                             ui.updateDecryptUI();
@@ -241,11 +212,7 @@ public class HelloApplication extends Application {
         boolean isBoss = engine.isBossLevel(p.currentLevel);
 
         if (isBoss) {
-            // 套用天賦2：弱化防火牆，初始血量降低 (進度增加代表防線變弱)
-            engine.isFirewallFight = true;
-            engine.firewallProgress = 0.5 + (p.talentWeakFW * 0.05);
-            ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
-
+            engine.isFirewallFight = true; engine.firewallProgress = 0.5; ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
             engine.isInterceptFight = true; engine.sequenceIndex = 0;
             engine.targetSequence = "WASD";
             ui.updateInterceptUI();
@@ -254,10 +221,7 @@ public class HelloApplication extends Application {
         } else {
             int rand = engine.random.nextInt(3);
             if (rand == 0) {
-                // 套用天賦2：弱化防火牆
-                engine.isFirewallFight = true;
-                engine.firewallProgress = 0.5 + (p.talentWeakFW * 0.05);
-                ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
+                engine.isFirewallFight = true; engine.firewallProgress = 0.5; ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
             } else if (rand == 1) {
                 engine.isInterceptFight = true; engine.sequenceIndex = 0;
                 int len = (int)(4 + (p.currentLevel * p.routeDiffMult / 2));
@@ -273,9 +237,7 @@ public class HelloApplication extends Application {
                 ui.decryptTargetDisplay.setText(engine.decryptTarget);
                 ui.updateDecryptUI();
                 long now = System.nanoTime();
-
-                // 套用天賦3：加長閃現記憶時間
-                engine.decryptFlashEndTime = now + 500_000_000L + (p.talentFlashTime * 150_000_000L);
+                engine.decryptFlashEndTime = now + 500_000_000L;
                 engine.decryptDeadline = now + (long)(5.0 * 1_000_000_000L);
                 ui.decryptLayer.setVisible(true);
             }
@@ -316,10 +278,7 @@ public class HelloApplication extends Application {
         p.darkCoins += earned;
         p.currentLevel++;
         engine.progress = 0.0; engine.currentSegment = 0;
-        if (p.currentLevel > p.highScore) {
-            p.highScore = p.currentLevel;
-            p.saveData(); // 超越最高紀錄立刻永久存檔
-        }
+        if (p.currentLevel > p.highScore) p.highScore = p.currentLevel;
 
         ui.uiBorder.setTextFill(Color.rgb(0, 255, 204, 0.5));
         ui.gameLayer.setVisible(false);
@@ -330,42 +289,88 @@ public class HelloApplication extends Application {
     public void triggerGameOver(String reason) {
         engine.currentState = HackEngine.GameState.GAMEOVER;
         ui.shakeScreen();
-
-        // === 局外永久結算 (將當局剩餘 DarkCoins 的 10% 存入 LegacyCoins) ===
-        int earnedLegacy = p.darkCoins / 10;
-        p.legacyCoins += earnedLegacy;
-        p.saveData(); // 死亡時必定自動存檔
-        ui.updateTalentUI(); // 同步主選單數據
-
         ui.gameOverReasonLabel.setText(reason);
-        ui.gameOverStatsLabel.setText("REACHED LAYER: " + p.currentLevel + "\nPERMANENT LEGACY COINS EARNED: +" + earnedLegacy);
+        ui.gameOverStatsLabel.setText("REACHED LAYER: " + p.currentLevel);
         ui.gameOverLayer.setVisible(true);
         ui.firewallLayer.setVisible(false);
         ui.interceptLayer.setVisible(false);
         ui.decryptLayer.setVisible(false);
     }
 
-    // 新增：處理天賦購買邏輯
-    public void upgradeTalent(int id, int cost) {
-        if (id == 1 && p.talentStartEMP < 3 && p.buyLegacy(cost)) {
-            p.talentStartEMP++;
-        } else if (id == 2 && p.talentWeakFW < 5 && p.buyLegacy(cost)) {
-            p.talentWeakFW++;
-        } else if (id == 3 && p.talentFlashTime < 3 && p.buyLegacy(cost)) {
-            p.talentFlashTime++;
+    // === 新增：點擊純圖標時，觸發的動態數據面板更新方法 ===
+    public void selectTalentNode(int branchId, int level) {
+        this.selectedBranch = branchId;
+        this.selectedLevel = level;
+
+        // 判定該分支當前擁有的等級
+        int currentLevelInBranch = (branchId == 1) ? p.talentStartEMP : (branchId == 2 ? p.talentWeakFW : p.talentFlashTime);
+        int cost = (branchId == 1) ? 50 : (branchId == 2 ? 75 : 100);
+
+        // 1. 生成名稱與等級文字
+        String branchName = (branchId == 1) ? "控制組件優化 [EMP 強化]" : (branchId == 2 ? "防火牆漏洞利用 [FW 弱化]" : "緩衝記憶體擴充 [FLASH 記憶]");
+        ui.talentNameLabel.setText(String.format(">>> 解密節點：%s (等級 %d) <<<", branchName, level));
+
+        // 2. 生成對應等級的專屬數據說明
+        if (branchId == 1) {
+            ui.talentEffectLabel.setText(String.format("加成效果：下一局開局時，直接載入額外自帶的 %d 顆 EMP 脈衝彈線路。", level));
+        } else if (branchId == 2) {
+            ui.talentEffectLabel.setText(String.format("加成效果：降低所有遭遇的防火牆厚度，初始破解進度額外弱化 +%d%%。", level * 5));
         } else {
-            playErrorSound(); // 錢不夠或滿級就嗶嗶叫
-            return;
+            ui.talentEffectLabel.setText(String.format("加成效果：增加解密矩陣密碼被系統黑掉遮蔽前的閃現記憶時間 +%.2fs 秒。", level * 0.15));
         }
-        p.saveData();
-        ui.updateTalentUI();
+
+        // 3. 根據解鎖關係判定升級按鈕與消耗顯示
+        if (level <= currentLevelInBranch) {
+            // 已解鎖
+            ui.talentCostLabel.setText("狀態：[ 數據已完美同步寫入 ]");
+            ui.talentCostLabel.setTextFill(Color.LIME);
+            ui.btnUpgradeTalent.setVisible(false);
+        } else if (level == currentLevelInBranch + 1) {
+            // 當前可購買
+            ui.talentCostLabel.setText(String.format("升級消耗：%d ¢ 永久 Legacy Coins", cost));
+            ui.talentCostLabel.setTextFill(Color.GOLD);
+            ui.btnUpgradeTalent.setText(">>> 執行數據寫入核心 <<<");
+            ui.btnUpgradeTalent.setVisible(true);
+
+            // 按鈕行為綁定到確認扣錢升級
+            ui.btnUpgradeTalent.setOnAction(e -> executeSelectedUpgrade(branchId, cost));
+        } else {
+            // 未按順序串聯，後續鎖定狀態
+            ui.talentCostLabel.setText("狀態：[ 核心未串接 - 需要解鎖前置等階線路 ]");
+            ui.talentCostLabel.setTextFill(Color.RED);
+            ui.btnUpgradeTalent.setVisible(false);
+        }
     }
 
-    // 新增：天賦選單切換
+    // 新增：按下下方解密面板按鈕時，真正扣除 LegacyCoins 的執行方法
+    private void executeSelectedUpgrade(int branchId, int cost) {
+        if (p.buyLegacy(cost)) {
+            if (branchId == 1) p.talentStartEMP++;
+            else if (branchId == 2) p.talentWeakFW++;
+            else if (branchId == 3) p.talentFlashTime++;
+
+            p.saveData(); // 永久存檔
+            ui.updateTalentUI(); // 刷亮圖形化樹狀圓圈與連線
+
+            // 重新選取該節點以刷新面板顯示為「已解鎖」
+            selectTalentNode(branchId, selectedLevel);
+        } else {
+            ui.talentCostLabel.setText("錯誤：[ 剩餘 Legacy Coins 不足，無法編譯核心組件 ]");
+            ui.talentCostLabel.setTextFill(Color.RED);
+        }
+    }
+
     public void openTalentTree() {
         engine.currentState = HackEngine.GameState.TALENT_TREE;
         ui.menuLayer.setVisible(false);
         ui.updateTalentUI();
+
+        // 每次進選單時清空下方資訊，引導玩家點擊
+        ui.talentNameLabel.setText(">>> 點擊任意節點解密核心天賦 <<<");
+        ui.talentEffectLabel.setText("選取節點以加載組件加成數據。");
+        ui.talentCostLabel.setText("");
+        ui.btnUpgradeTalent.setVisible(false);
+
         ui.talentLayer.setVisible(true);
     }
 
@@ -404,6 +409,7 @@ public class HelloApplication extends Application {
     public void returnToMenu() {
         ui.pauseLayer.setVisible(false); ui.gameLayer.setVisible(false); ui.shopLayer.setVisible(false);
         ui.gameOverLayer.setVisible(false); ui.routeLayer.setVisible(false); ui.menuLayer.setVisible(true);
+        ui.highScoreDisplay.setText("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢");
         resetGame(); engine.currentState = HackEngine.GameState.MAIN_MENU;
     }
 

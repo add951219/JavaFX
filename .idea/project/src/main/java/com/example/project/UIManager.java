@@ -2,15 +2,22 @@ package com.example.project;
 
 import javafx.animation.TranslateTransition;
 import javafx.geometry.Pos;
+import javafx.scene.Group;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Line;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.util.Duration;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class UIManager {
     private final PlayerStats p;
@@ -23,7 +30,15 @@ public class UIManager {
     public Label firewallBarDisplay, interceptTargetDisplay, interceptTimeDisplay, decryptTargetDisplay, decryptInputDisplay, decryptTimeDisplay;
     public Label gameOverReasonLabel, gameOverStatsLabel, skillDisplay;
     public Button honeypotBtn;
-    public Button btnTalent1, btnTalent2, btnTalent3; // 天賦按鈕
+
+    // === 新增：動態天賦說明面板元件 ===
+    public Label talentNameLabel, talentEffectLabel, talentCostLabel;
+    public Button btnUpgradeTalent;
+
+    private Group treeGroup;
+    private List<Circle> talentCircles = new ArrayList<>();
+    private List<Button> talentButtons = new ArrayList<>();
+    private List<Line> talentLines = new ArrayList<>();
 
     public String currentTargetText = "";
 
@@ -64,7 +79,6 @@ public class UIManager {
         Button btnStart = createStyledButton(">>> INITIATE HACK <<<");
         btnStart.setOnAction(e -> app.startIntroSequence()); // 呼叫 Controller 邏輯
 
-        // 新增：天賦樹切換按鈕
         Button btnOpenTalents = createStyledButton(">>> CYBER TALENTS <<<");
         btnOpenTalents.setStyle("-fx-background-color: black; -fx-text-fill: #FF007F; -fx-border-color: #FF007F; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;");
         btnOpenTalents.setOnAction(e -> app.openTalentTree());
@@ -121,7 +135,9 @@ public class UIManager {
         buildEventLayers();
         buildRouteLayer();
         buildShopLayer();
-        buildTalentLayer(); // 新增：渲染天賦樹畫面
+
+        // 初始建構一次天賦樹外殼結構，並加進圖層
+        buildTalentLayerStructure();
 
         // 暫停層
         pauseLayer = new StackPane();
@@ -284,12 +300,42 @@ public class UIManager {
         shopLayer.setVisible(false);
     }
 
-    // 新增：建構永久天賦畫面圖層
-    private void buildTalentLayer() {
+    // 建構外殼結構，此方法只在 buildVisuals 執行一次
+    private void buildTalentLayerStructure() {
         talentLayer = new StackPane();
-        talentLayer.setStyle("-fx-background-color: #0d0214;"); // 深紫色駭客風格
-        VBox talentBox = new VBox(20);
-        talentBox.setAlignment(Pos.CENTER);
+        talentLayer.setStyle("-fx-background-color: #0d0214;");
+
+        treeGroup = new Group();
+
+        StackPane treePane = new StackPane(treeGroup);
+        treePane.setAlignment(Pos.CENTER);
+        treePane.setPrefSize(700, 320); // 縮小畫布，為下方的數據面板留空間
+
+        // === 新增：解密數據面板 (Description Box) ===
+        VBox descBox = new VBox(5);
+        descBox.setAlignment(Pos.CENTER);
+        descBox.setStyle("-fx-background-color: #160826; -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 15; -fx-max-width: 550;");
+
+        talentNameLabel = new Label(">>> 點擊任意節點解密核心天賦 <<<");
+        talentNameLabel.setTextFill(Color.CYAN);
+        talentNameLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 16));
+
+        talentEffectLabel = new Label("選取節點以加載組件加成數據。");
+        talentEffectLabel.setTextFill(Color.LIGHTGRAY);
+        talentEffectLabel.setFont(Font.font("Consolas", 14));
+
+        talentCostLabel = new Label("");
+        talentCostLabel.setTextFill(Color.GOLD);
+        talentCostLabel.setFont(Font.font("Consolas", 14));
+
+        btnUpgradeTalent = createStyledButton(">>> 寫入天賦線路 <<<");
+        btnUpgradeTalent.setStyle("-fx-background-color: #3b0222; -fx-text-fill: #FF007F; -fx-border-color: #FF007F; -fx-font-family: 'Consolas'; -fx-font-weight: bold; -fx-cursor: hand;");
+        btnUpgradeTalent.setVisible(false); // 初始隱藏
+
+        descBox.getChildren().addAll(talentNameLabel, talentEffectLabel, talentCostLabel, btnUpgradeTalent);
+
+        VBox talentLayout = new VBox(15);
+        talentLayout.setAlignment(Pos.CENTER);
 
         Label title = new Label("== CYBERNETIC TALENT TREE ==");
         title.setTextFill(Color.web("#FF007F"));
@@ -299,77 +345,174 @@ public class UIManager {
         talentCoinDisplay.setTextFill(Color.GOLD);
         talentCoinDisplay.setFont(Font.font("Consolas", 24));
 
-        btnTalent1 = createShopButton("控制組件優化", 50);
-        btnTalent1.setOnAction(e -> app.upgradeTalent(1, 50));
-
-        btnTalent2 = createShopButton("防火牆漏洞利用", 75);
-        btnTalent2.setOnAction(e -> app.upgradeTalent(2, 75));
-
-        btnTalent3 = createShopButton("緩衝記憶體擴充", 100);
-        btnTalent3.setOnAction(e -> app.upgradeTalent(3, 100));
-
         Button btnBack = createStyledButton("<<< RETURN TO MENU");
         btnBack.setOnAction(e -> app.closeTalentTree());
 
-        talentBox.getChildren().addAll(title, talentCoinDisplay, btnTalent1, btnTalent2, btnTalent3, btnBack);
-        talentLayer.getChildren().add(talentBox);
+        talentLayout.getChildren().addAll(title, talentCoinDisplay, treePane, descBox, btnBack);
+        talentLayer.getChildren().add(talentLayout);
         talentLayer.setVisible(false);
+
+        // 初始繪製一次節點
+        drawTalentTreeNodes();
     }
 
-    // --- UI 更新工具方法 ---
+    // 純粹負責清理 Group 並重新刻畫只有「純圖標」的圓圈、線段
+    private void drawTalentTreeNodes() {
+        treeGroup.getChildren().clear();
+        talentCircles.clear();
+        talentButtons.clear();
+        talentLines.clear();
+
+        // 核心中心節點：使用 🌐 圖標代替文字
+        Circle coreCircle = createTalentNodeCircle(0, 0, 32, true, Color.CYAN, Color.rgb(0, 40, 50));
+        Label coreLabel = createTalentNodeLabel(0, 0, "🌐", true, 18);
+        treeGroup.getChildren().addAll(coreCircle, coreLabel);
+
+        // --- 上方分支：控制組件優化 (EMP, 3級) | 圖標：⚡ ---
+        buildTalentBranch(1, 3, 270, 70, new Color[]{Color.CYAN, Color.rgb(0, 40, 50)}, coreCircle, "⚡");
+
+        // --- 左下分支：防火牆漏洞利用 (WeakFW, 5級) | 圖標：🔓 ---
+        buildTalentBranch(2, 5, 150, 70, new Color[]{Color.LIME, Color.rgb(0, 40, 0)}, coreCircle, "🔓");
+
+        // --- 右下分支：緩衝記憶體擴充 (FlashTime, 3級) | 圖標：⏳ ---
+        buildTalentBranch(3, 3, 30, 70, new Color[]{Color.ORANGE, Color.rgb(40, 20, 0)}, coreCircle, "⏳");
+    }
+
+    // 建立完全沒有文字溢出、只有純圖標的乾淨分支
+    private void buildTalentBranch(int id, int maxLevel, double angle, double startRadius, Color[] colors, Circle parentCircle, String iconSymbol) {
+        Circle currentParent = parentCircle;
+
+        for (int i = 1; i <= maxLevel; i++) {
+            double r = startRadius + (i-1) * 52;
+            double x = r * Math.cos(Math.toRadians(angle));
+            double y = r * Math.sin(Math.toRadians(angle));
+
+            // 根據解鎖進度調整顏色狀態 (1=已解鎖, 2=當前可買, 3=後續鎖定)
+            Color strokeColor = Color.rgb(60, 60, 60);
+            Color fillColor = Color.rgb(15, 15, 15);
+            Color iconColor = Color.rgb(80, 80, 80);
+
+            if (unlocked(id, i)) {
+                strokeColor = colors[0];
+                fillColor = colors[1];
+                iconColor = Color.WHITE;
+            } else if (isNextAvailable(id, i)) {
+                strokeColor = Color.LIGHTGRAY; // 可購買的節點亮白邊框提示
+                fillColor = Color.rgb(30, 30, 35);
+                iconColor = colors[0];
+            }
+
+            // 建立圓圈底座
+            Circle c = new Circle(18);
+            c.setTranslateX(x); c.setTranslateY(y);
+            c.setStrokeWidth(3);
+            c.setStroke(strokeColor);
+            c.setFill(fillColor);
+
+            // 建立純圖標按鈕 (按鈕文字就是 Emoji，完全透明無邊框，類似第二張圖)
+            Button btn = new Button(iconSymbol);
+            btn.setFont(Font.font("Segoe UI Emoji", 14));
+            btn.setTextFill(iconColor);
+            btn.setStyle("-fx-background-color: transparent; -fx-padding: 0; -fx-cursor: hand;");
+            btn.setTranslateX(x - 12); btn.setTranslateY(y - 12);
+
+            // 點擊事件：僅觸發「選取節點」，不會立刻扣錢扣天賦，安全且具備說明功能！
+            final int branchId = id;
+            final int nodeLevel = i;
+            btn.setOnAction(e -> app.selectTalentNode(branchId, nodeLevel));
+
+            // 連接線段
+            Line line = createConnectionLine(
+                    (currentParent.getRadius()+3) * Math.cos(Math.toRadians(angle)) + currentParent.getTranslateX(),
+                    (currentParent.getRadius()+3) * Math.sin(Math.toRadians(angle)) + currentParent.getTranslateY(),
+                    (18-3) * Math.cos(Math.toRadians(angle+180)) + x,
+                    (18-3) * Math.sin(Math.toRadians(angle+180)) + y,
+                    unlocked(id, i), colors[0]
+            );
+
+            treeGroup.getChildren().addAll(line, c, btn);
+            currentParent = c;
+        }
+    }
+
+    private boolean unlocked(int id, int level) {
+        if (id == 1) return p.talentStartEMP >= level;
+        if (id == 2) return p.talentWeakFW >= level;
+        if (id == 3) return p.talentFlashTime >= level;
+        return false;
+    }
+
+    // 新增：判定是不是下一個可以點擊解鎖的節點
+    private boolean isNextAvailable(int id, int level) {
+        if (id == 1) return p.talentStartEMP == level - 1;
+        if (id == 2) return p.talentWeakFW == level - 1;
+        if (id == 3) return p.talentFlashTime == level - 1;
+        return false;
+    }
+
+    private Circle createTalentNodeCircle(double x, double y, double radius, boolean unlocked, Color unlockedStroke, Color unlockedFill) {
+        Circle c = new Circle(radius);
+        c.setTranslateX(x); c.setTranslateY(y);
+        c.setStrokeWidth(3);
+        if (unlocked) { c.setStroke(unlockedStroke); c.setFill(unlockedFill); }
+        else { c.setStroke(Color.rgb(100, 100, 100)); c.setFill(Color.rgb(20, 20, 20)); }
+        return c;
+    }
+
+    private Label createTalentNodeLabel(double x, double y, String text, boolean unlocked, int fontSize) {
+        Label l = new Label(text);
+        l.setFont(Font.font("Segoe UI Emoji", fontSize));
+        l.setTranslateX(x - 10); l.setTranslateY(y - 12);
+        if (unlocked) l.setTextFill(Color.WHITE); else l.setTextFill(Color.rgb(150, 150, 150));
+        l.setAlignment(Pos.CENTER);
+        return l;
+    }
+
+    private Line createConnectionLine(double startX, double startY, double endX, double endY, boolean unlocked, Color unlockedColor) {
+        Line line = new Line(startX, startY, endX, endY);
+        line.setStrokeWidth(3);
+        if (unlocked) line.setStroke(unlockedColor); else line.setStroke(Color.rgb(70, 70, 70));
+        return line;
+    }
+
+    // --- 介面工具方法 ---
     public void updateShopUI() {
         coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢");
-        skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges);
+        skillDisplay.setText("[1] EMP: 0   [2] SLOW: 0");
     }
 
-    // 新增：更新天賦樹顯示
     public void updateTalentUI() {
         talentCoinDisplay.setText("LEGACY COINS: " + p.legacyCoins + " ¢");
         highScoreDisplay.setText("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢");
-
-        btnTalent1.setText("控制組件優化 (Lv." + p.talentStartEMP + "/3) [50 ¢]\n-> 開局自帶同等數量 EMP 彈");
-        btnTalent2.setText("防火牆漏洞利用 (Lv." + p.talentWeakFW + "/5) [75 ¢]\n-> 降低防護牆初始厚度 " + (p.talentWeakFW * 5) + "%");
-        btnTalent3.setText("緩衝記憶體擴充 (Lv." + p.talentFlashTime + "/3) [100 ¢]\n-> 延長解密閃現記憶時間 +" + String.format("%.1f", p.talentFlashTime * 0.15) + "s");
+        drawTalentTreeNodes(); // 重新刷圓圈和線條的亮暗顏色
     }
 
     public void updateFirewallUI() { firewallBarDisplay.setText("[" + "|".repeat((int)(engine.firewallProgress*20)) + ".".repeat(20-(int)(engine.firewallProgress*20)) + "]"); }
-
     public void updateInterceptUI() {
         StringBuilder sb = new StringBuilder();
         for(int i=0; i<engine.targetSequence.length(); i++) sb.append(i<engine.sequenceIndex ? "- " : engine.targetSequence.charAt(i)+" ");
         interceptTargetDisplay.setText(sb.toString().trim());
     }
-
     public void updateDecryptUI() { decryptInputDisplay.setText("> " + engine.decryptInput + "_"); }
-
     public void updateASCIIProgress() {
         StringBuilder sb = new StringBuilder("[");
-        for (int i=1; i<=20; i++) {
-            if (i <= (engine.progress*20)) sb.append("|"); else sb.append(".");
-        }
+        for (int i=1; i<=20; i++) { if (i <= (engine.progress*20)) sb.append("|"); else sb.append("."); }
         sb.append("] ").append((int)(engine.progress*100)).append("%");
         progressDisplay.setText("LEVEL " + p.currentLevel + " " + sb.toString());
         if (!engine.isHacking && !engine.isFirewallFight) statusLabel.setText(">>> WARNING: LOSING PROGRESS... [RELEASED]");
         else if (engine.isHacking) statusLabel.setText(">>> INJECTING... BREACHING LAYER " + (engine.currentSegment+1));
     }
-
-    public void typeWriterUpdate(String t) {
-        currentTargetText = t;
-        statusLabel.setText(t);
-    }
-
+    public void typeWriterUpdate(String t) { currentTargetText = t; statusLabel.setText(t); }
     public void shakeScreen() {
         TranslateTransition tt = new TranslateTransition(Duration.millis(50), root);
         tt.setFromX(0f); tt.setByX(10f); tt.setCycleCount(6); tt.setAutoReverse(true);
         tt.playFromStart();
     }
-
     private Button createStyledButton(String text) {
         Button btn = new Button(text);
         btn.setStyle("-fx-background-color: black; -fx-text-fill: cyan; -fx-border-color: cyan; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;");
         return btn;
     }
-
     private Button createShopButton(String name, int cost) {
         Button btn = new Button(name + " [Cost: " + cost + "¢]");
         btn.setStyle("-fx-background-color: #111; -fx-text-fill: lime; -fx-border-color: lime; -fx-font-family: 'Consolas'; -fx-font-size: 14px; -fx-cursor: hand;");
