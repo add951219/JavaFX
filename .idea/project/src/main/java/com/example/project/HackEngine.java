@@ -3,14 +3,17 @@ package com.example.project;
 import java.util.Random;
 
 public class HackEngine {
-    // 新增 TALENT_TREE 狀態
     public enum GameState { MAIN_MENU, INTRO, PLAYING, PAUSED, ROUTE_SELECT, SHOP, GAMEOVER, TALENT_TREE }
     public GameState currentState = GameState.MAIN_MENU;
+
+    // === 新增：環境詛咒類型 ===
+    public enum GlitchType { NONE, NETWORK_LAG, VISUAL_DISTORTION, CORE_OVERLOAD }
+    public GlitchType activeGlitch = GlitchType.NONE;
 
     public boolean isHacking = false;
     public double progress = 0.0;
     public int currentSegment = 0;
-    public int totalSegments = 4; // Boss 戰可以改變這個長度
+    public int totalSegments = 4;
 
     public double comboMultiplier = 1.0;
     public int comboFrames = 0;
@@ -52,7 +55,19 @@ public class HackEngine {
         return level % 5 == 0;
     }
 
-    // 主動技能 1：EMP (削弱防火牆 40% 血量)
+    // 新增：每一層隨機生成詛咒的邏輯 (Boss 關卡不疊加詛咒)
+    public void rollGlitch(int level) {
+        if (isBossLevel(level)) {
+            activeGlitch = GlitchType.NONE;
+            return;
+        }
+        int r = random.nextInt(4); // 0: 無, 1: 延遲, 2: 視覺, 3: 超載
+        if (r == 1) activeGlitch = GlitchType.NETWORK_LAG;
+        else if (r == 2) activeGlitch = GlitchType.VISUAL_DISTORTION;
+        else if (r == 3) activeGlitch = GlitchType.CORE_OVERLOAD;
+        else activeGlitch = GlitchType.NONE;
+    }
+
     public boolean useEMP(PlayerStats p) {
         if (p.empCharges > 0 && isFirewallFight) {
             p.empCharges--;
@@ -62,7 +77,6 @@ public class HackEngine {
         return false;
     }
 
-    // 主動技能 2：超頻沙漏 (延長 WASD 攔截時間 2.5 秒)
     public boolean useSlow(PlayerStats p) {
         if (p.slowCharges > 0 && (isInterceptFight || isDecryptFight)) {
             p.slowCharges--;

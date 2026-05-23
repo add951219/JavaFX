@@ -31,7 +31,9 @@ public class UIManager {
     public Label gameOverReasonLabel, gameOverStatsLabel, skillDisplay;
     public Button honeypotBtn;
 
-    // === 新增：動態天賦說明面板元件 ===
+    // 新增：詛咒狀態警告標籤
+    public Label glitchWarningLabel;
+
     public Label talentNameLabel, talentEffectLabel, talentCostLabel;
     public Button btnUpgradeTalent;
 
@@ -77,7 +79,7 @@ public class UIManager {
         highScoreDisplay.setFont(Font.font("Consolas", 20));
 
         Button btnStart = createStyledButton(">>> INITIATE HACK <<<");
-        btnStart.setOnAction(e -> app.startIntroSequence()); // 呼叫 Controller 邏輯
+        btnStart.setOnAction(e -> app.startIntroSequence());
 
         Button btnOpenTalents = createStyledButton(">>> CYBER TALENTS <<<");
         btnOpenTalents.setStyle("-fx-background-color: black; -fx-text-fill: #FF007F; -fx-border-color: #FF007F; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;");
@@ -107,6 +109,10 @@ public class UIManager {
         statusLabel.setTextFill(Color.CYAN);
         statusLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
 
+        // 新增：將詛咒警報警告位置塞在狀態欄下方
+        glitchWarningLabel = new Label("");
+        glitchWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 15));
+
         progressDisplay = new Label("LEVEL 1 [....☼....☼....☼....] 0%");
         progressDisplay.setTextFill(Color.LIME);
         progressDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 28));
@@ -115,7 +121,7 @@ public class UIManager {
         comboDisplay.setTextFill(Color.YELLOW);
         comboDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
 
-        gameBox.getChildren().addAll(statusLabel, comboDisplay, progressDisplay);
+        gameBox.getChildren().addAll(statusLabel, glitchWarningLabel, comboDisplay, progressDisplay);
         gameLayer = new StackPane(uiBorder, gameBox);
         gameLayer.setVisible(false);
 
@@ -135,8 +141,6 @@ public class UIManager {
         buildEventLayers();
         buildRouteLayer();
         buildShopLayer();
-
-        // 初始建構一次天賦樹外殼結構，並加進圖層
         buildTalentLayerStructure();
 
         // 暫停層
@@ -300,7 +304,6 @@ public class UIManager {
         shopLayer.setVisible(false);
     }
 
-    // 建構外殼結構，此方法只在 buildVisuals 執行一次
     private void buildTalentLayerStructure() {
         talentLayer = new StackPane();
         talentLayer.setStyle("-fx-background-color: #0d0214;");
@@ -309,9 +312,8 @@ public class UIManager {
 
         StackPane treePane = new StackPane(treeGroup);
         treePane.setAlignment(Pos.CENTER);
-        treePane.setPrefSize(700, 320); // 縮小畫布，為下方的數據面板留空間
+        treePane.setPrefSize(700, 320);
 
-        // === 新增：解密數據面板 (Description Box) ===
         VBox descBox = new VBox(5);
         descBox.setAlignment(Pos.CENTER);
         descBox.setStyle("-fx-background-color: #160826; -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 15; -fx-max-width: 550;");
@@ -330,7 +332,7 @@ public class UIManager {
 
         btnUpgradeTalent = createStyledButton(">>> 寫入天賦線路 <<<");
         btnUpgradeTalent.setStyle("-fx-background-color: #3b0222; -fx-text-fill: #FF007F; -fx-border-color: #FF007F; -fx-font-family: 'Consolas'; -fx-font-weight: bold; -fx-cursor: hand;");
-        btnUpgradeTalent.setVisible(false); // 初始隱藏
+        btnUpgradeTalent.setVisible(false);
 
         descBox.getChildren().addAll(talentNameLabel, talentEffectLabel, talentCostLabel, btnUpgradeTalent);
 
@@ -352,76 +354,55 @@ public class UIManager {
         talentLayer.getChildren().add(talentLayout);
         talentLayer.setVisible(false);
 
-        // 初始繪製一次節點
         drawTalentTreeNodes();
     }
 
-    // 純粹負責清理 Group 並重新刻畫只有「純圖標」的圓圈、線段
     private void drawTalentTreeNodes() {
         treeGroup.getChildren().clear();
         talentCircles.clear();
         talentButtons.clear();
         talentLines.clear();
 
-        // 核心中心節點：使用 🌐 圖標代替文字
         Circle coreCircle = createTalentNodeCircle(0, 0, 32, true, Color.CYAN, Color.rgb(0, 40, 50));
         Label coreLabel = createTalentNodeLabel(0, 0, "🌐", true, 18);
         treeGroup.getChildren().addAll(coreCircle, coreLabel);
 
-        // --- 上方分支：控制組件優化 (EMP, 3級) | 圖標：⚡ ---
         buildTalentBranch(1, 3, 270, 70, new Color[]{Color.CYAN, Color.rgb(0, 40, 50)}, coreCircle, "⚡");
-
-        // --- 左下分支：防火牆漏洞利用 (WeakFW, 5級) | 圖標：🔓 ---
         buildTalentBranch(2, 5, 150, 70, new Color[]{Color.LIME, Color.rgb(0, 40, 0)}, coreCircle, "🔓");
-
-        // --- 右下分支：緩衝記憶體擴充 (FlashTime, 3級) | 圖標：⏳ ---
         buildTalentBranch(3, 3, 30, 70, new Color[]{Color.ORANGE, Color.rgb(40, 20, 0)}, coreCircle, "⏳");
     }
 
-    // 建立完全沒有文字溢出、只有純圖標的乾淨分支
     private void buildTalentBranch(int id, int maxLevel, double angle, double startRadius, Color[] colors, Circle parentCircle, String iconSymbol) {
         Circle currentParent = parentCircle;
-
         for (int i = 1; i <= maxLevel; i++) {
             double r = startRadius + (i-1) * 52;
             double x = r * Math.cos(Math.toRadians(angle));
             double y = r * Math.sin(Math.toRadians(angle));
 
-            // 根據解鎖進度調整顏色狀態 (1=已解鎖, 2=當前可買, 3=後續鎖定)
             Color strokeColor = Color.rgb(60, 60, 60);
             Color fillColor = Color.rgb(15, 15, 15);
             Color iconColor = Color.rgb(80, 80, 80);
 
             if (unlocked(id, i)) {
-                strokeColor = colors[0];
-                fillColor = colors[1];
-                iconColor = Color.WHITE;
+                strokeColor = colors[0]; fillColor = colors[1]; iconColor = Color.WHITE;
             } else if (isNextAvailable(id, i)) {
-                strokeColor = Color.LIGHTGRAY; // 可購買的節點亮白邊框提示
-                fillColor = Color.rgb(30, 30, 35);
-                iconColor = colors[0];
+                strokeColor = Color.LIGHTGRAY; fillColor = Color.rgb(30, 30, 35); iconColor = colors[0];
             }
 
-            // 建立圓圈底座
             Circle c = new Circle(18);
             c.setTranslateX(x); c.setTranslateY(y);
-            c.setStrokeWidth(3);
-            c.setStroke(strokeColor);
-            c.setFill(fillColor);
+            c.setStrokeWidth(3); c.setStroke(strokeColor); c.setFill(fillColor);
 
-            // 建立純圖標按鈕 (按鈕文字就是 Emoji，完全透明無邊框，類似第二張圖)
             Button btn = new Button(iconSymbol);
             btn.setFont(Font.font("Segoe UI Emoji", 14));
             btn.setTextFill(iconColor);
             btn.setStyle("-fx-background-color: transparent; -fx-padding: 0; -fx-cursor: hand;");
             btn.setTranslateX(x - 12); btn.setTranslateY(y - 12);
 
-            // 點擊事件：僅觸發「選取節點」，不會立刻扣錢扣天賦，安全且具備說明功能！
             final int branchId = id;
             final int nodeLevel = i;
             btn.setOnAction(e -> app.selectTalentNode(branchId, nodeLevel));
 
-            // 連接線段
             Line line = createConnectionLine(
                     (currentParent.getRadius()+3) * Math.cos(Math.toRadians(angle)) + currentParent.getTranslateX(),
                     (currentParent.getRadius()+3) * Math.sin(Math.toRadians(angle)) + currentParent.getTranslateY(),
@@ -442,7 +423,6 @@ public class UIManager {
         return false;
     }
 
-    // 新增：判定是不是下一個可以點擊解鎖的節點
     private boolean isNextAvailable(int id, int level) {
         if (id == 1) return p.talentStartEMP == level - 1;
         if (id == 2) return p.talentWeakFW == level - 1;
@@ -475,16 +455,33 @@ public class UIManager {
         return line;
     }
 
+    // 新增：刷新環境詛咒警告文字的頂層方法
+    public void updateGlitchDisplay() {
+        if (engine.activeGlitch == HackEngine.GlitchType.NONE) {
+            glitchWarningLabel.setText("[系統狀態：傳輸環境安全]");
+            glitchWarningLabel.setTextFill(Color.LIME);
+        } else if (engine.activeGlitch == HackEngine.GlitchType.NETWORK_LAG) {
+            glitchWarningLabel.setText("⚠ 環境詛咒：[NETWORK_LAG] 延遲嚴重 - 倒數時間縮短 40% ⚠");
+            glitchWarningLabel.setTextFill(Color.ORANGE);
+        } else if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) {
+            glitchWarningLabel.setText("⚠ 環境詛咒：[VISUAL_DISTORTION] 視覺污染 - 代碼紊亂爆發 ⚠");
+            glitchWarningLabel.setTextFill(Color.web("#FF007F"));
+        } else if (engine.activeGlitch == HackEngine.GlitchType.CORE_OVERLOAD) {
+            glitchWarningLabel.setText("⚠ 環境詛咒：[CORE_OVERLOAD] 核心超載 - 主動技能遭系統封鎖 ⚠");
+            glitchWarningLabel.setTextFill(Color.RED);
+        }
+    }
+
     // --- 介面工具方法 ---
     public void updateShopUI() {
         coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢");
-        skillDisplay.setText("[1] EMP: 0   [2] SLOW: 0");
+        skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges);
     }
 
     public void updateTalentUI() {
         talentCoinDisplay.setText("LEGACY COINS: " + p.legacyCoins + " ¢");
         highScoreDisplay.setText("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢");
-        drawTalentTreeNodes(); // 重新刷圓圈和線條的亮暗顏色
+        drawTalentTreeNodes();
     }
 
     public void updateFirewallUI() { firewallBarDisplay.setText("[" + "|".repeat((int)(engine.firewallProgress*20)) + ".".repeat(20-(int)(engine.firewallProgress*20)) + "]"); }
