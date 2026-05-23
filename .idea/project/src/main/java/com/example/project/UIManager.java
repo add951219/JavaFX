@@ -29,6 +29,10 @@ public class UIManager {
     public Button btnUpgradeTalent, honeypotBtn;
     public VBox descBox;
     public ImageView errorImage1, errorImage2;
+
+    // 新增：音量滑桿變數
+    public Slider menuVolumeSlider, pauseVolumeSlider;
+
     private Group treeGroup;
     private List<Circle> talentCircles = new ArrayList<>();
     private List<Button> talentButtons = new ArrayList<>();
@@ -71,7 +75,17 @@ public class UIManager {
         bootWarningLabel.setTextFill(Color.rgb(255, 50, 50, 0.6));
         bootWarningLabel.setFont(Font.font("Consolas", 11));
 
-        menuBox.getChildren().addAll(versionLabel, title, highScoreDisplay, systemStatusLabel, btnStart, btnOpenTalents, btnExit, bootWarningLabel);
+        // 新增：首頁的音量控制條
+        Label menuVolLabel = new Label("VOL:");
+        menuVolLabel.setTextFill(Color.LIME);
+        menuVolLabel.setFont(Font.font("Consolas", 14));
+        menuVolumeSlider = new Slider(0, 1, 0.5);
+        menuVolumeSlider.setMaxWidth(200);
+        HBox menuVolBox = new HBox(10, menuVolLabel, menuVolumeSlider);
+        menuVolBox.setAlignment(Pos.CENTER);
+
+        // 將 menuVolBox 加入 menuBox
+        menuBox.getChildren().addAll(versionLabel, title, highScoreDisplay, systemStatusLabel, btnStart, btnOpenTalents, btnExit, bootWarningLabel, menuVolBox);
         menuLayer.getChildren().add(menuBox);
 
         FadeTransition statusBlink = new FadeTransition(Duration.millis(800), systemStatusLabel);
@@ -102,9 +116,30 @@ public class UIManager {
 
         pauseLayer = new StackPane(); pauseLayer.setStyle("-fx-background-color: rgba(0,0,0,0.85);");
         VBox pauseBox = new VBox(20); pauseBox.setAlignment(Pos.CENTER); Label pauseTitle = new Label("SYSTEM PAUSED"); pauseTitle.setTextFill(Color.WHITE); pauseTitle.setFont(Font.font("Consolas", 40));
+
+        // 新增：暫停選單的音量控制條
+        Label pauseVolLabel = new Label("VOL:");
+        pauseVolLabel.setTextFill(Color.LIME);
+        pauseVolLabel.setFont(Font.font("Consolas", 14));
+        pauseVolumeSlider = new Slider(0, 1, 0.5);
+        pauseVolumeSlider.setMaxWidth(200);
+        HBox pauseVolBox = new HBox(10, pauseVolLabel, pauseVolumeSlider);
+        pauseVolBox.setAlignment(Pos.CENTER);
+
+        // 雙向綁定兩個滑桿的值
+        menuVolumeSlider.valueProperty().bindBidirectional(pauseVolumeSlider.valueProperty());
+
+        // 監聽滑桿變動並更新 BGM 音量
+        menuVolumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            app.setBgmVolume(newVal.doubleValue());
+        });
+
         Button btnResume = createStyledButton("RESUME"); btnResume.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; pauseLayer.setVisible(false); });
         Button btnMenuPause = createStyledButton("ABORT TO MENU"); btnMenuPause.setOnAction(e -> app.returnToMenu());
-        pauseBox.getChildren().addAll(pauseTitle, btnResume, btnMenuPause); pauseLayer.getChildren().add(pauseBox); pauseLayer.setVisible(false);
+
+        // 將 pauseVolBox 加入 pauseBox
+        pauseBox.getChildren().addAll(pauseTitle, pauseVolBox, btnResume, btnMenuPause);
+        pauseLayer.getChildren().add(pauseBox); pauseLayer.setVisible(false);
 
         gameOverLayer = new StackPane(); gameOverLayer.setStyle("-fx-background-color: rgba(139, 0, 0, 0.95);");
         VBox overBox = new VBox(20); overBox.setAlignment(Pos.CENTER);
@@ -197,7 +232,29 @@ public class UIManager {
     }
 
     private void buildRouteLayer() { routeLayer = new StackPane(); routeLayer.setStyle("-fx-background-color: rgba(10, 30, 10, 0.9);"); VBox routeBox = new VBox(20); routeBox.setAlignment(Pos.CENTER); Label title = new Label(">>> SELECT NEXT NODE <<<"); title.setTextFill(Color.LIME); title.setFont(Font.font("Consolas", 35)); HBox btnBox = new HBox(30); btnBox.setAlignment(Pos.CENTER); Button btnNormal = createStyledButton("廢棄學術伺服器\n(難度: 0.8x | 獎勵: 0.7x)"); btnNormal.setOnAction(e -> { p.routeDiffMult = 0.8; p.routeRewardMult = 0.7; app.enterShop(); }); Button btnHard = createStyledButton("高風險金融節點\n(難度: 1.5x | 獎勵: 2.0x)"); btnHard.setStyle("-fx-background-color: #300; -fx-text-fill: #f55; -fx-border-color: red; -fx-font-family: 'Consolas'; -fx-font-size: 16px;"); btnHard.setOnAction(e -> { p.routeDiffMult = 1.5; p.routeRewardMult = 2.0; app.enterShop(); }); btnBox.getChildren().addAll(btnNormal, btnHard); routeBox.getChildren().addAll(title, btnBox); routeLayer.getChildren().add(routeBox); routeLayer.setVisible(false); }
-    private void buildShopLayer() { shopLayer = new StackPane(); shopLayer.setStyle("-fx-background-color: #050505;"); VBox shopBox = new VBox(10); shopBox.setAlignment(Pos.CENTER); Label shopTitle = new Label("--- BLACK MARKET ---"); shopTitle.setTextFill(Color.LIME); shopTitle.setFont(Font.font("Consolas", 40)); coinDisplay = new Label("DarkCoins: 0 ¢"); coinDisplay.setTextFill(Color.GOLD); coinDisplay.setFont(Font.font("Consolas", 25)); Button btn1 = createShopButton("重磅封包 (Lv."+p.upgClick+")", 100); btn1.setOnAction(e -> { if(p.buy(100)) p.upgClick++; btn1.setText("重磅封包 (Lv."+p.upgClick+")"); updateShopUI(); }); Button btn2 = createShopButton("注入加速 (Lv."+p.upgSpeed+")", 150); btn2.setOnAction(e -> { if(p.buy(150)) p.upgSpeed++; btn2.setText("注入加速 (Lv."+p.upgSpeed+")"); updateShopUI(); }); Button btnEmp = createShopButton("EMP 脈衝彈 (炸 firewall)", 200); btnEmp.setOnAction(e -> { if(p.buy(200)) p.empCharges++; updateShopUI(); }); Button btnSlow = createShopButton("超頻沙漏 (緩速破解)", 250); btnSlow.setOnAction(e -> { if(p.buy(250)) p.slowCharges++; updateShopUI(); }); Button btnNext = createStyledButton(">>> INJECT PAYLOAD <<<"); btnNext.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; shopLayer.setVisible(false); gameLayer.setVisible(true); engine.resetEvents(); app.checkBossLevel(); }); shopBox.getChildren().addAll(shopTitle, coinDisplay, btn1, btn2, btnEmp, btnSlow, btnNext); shopLayer.getChildren().add(shopBox); shopLayer.setVisible(false); }
+
+    private void buildShopLayer() {
+        shopLayer = new StackPane(); shopLayer.setStyle("-fx-background-color: #050505;"); VBox shopBox = new VBox(10); shopBox.setAlignment(Pos.CENTER); Label shopTitle = new Label("--- BLACK MARKET ---"); shopTitle.setTextFill(Color.LIME); shopTitle.setFont(Font.font("Consolas", 40)); coinDisplay = new Label("DarkCoins: 0 ¢"); coinDisplay.setTextFill(Color.GOLD); coinDisplay.setFont(Font.font("Consolas", 25));
+
+        Button btn1 = createShopButton("重磅封包 (Lv."+p.upgClick+")", 100);
+        btn1.setOnAction(e -> {
+            if(p.buy(100)) p.upgClick++;
+            // 修復：更新文字時包含價錢顯示
+            btn1.setText("重磅封包 (Lv."+p.upgClick+") [Cost: 100¢]");
+            updateShopUI();
+        });
+
+        Button btn2 = createShopButton("注入加速 (Lv."+p.upgSpeed+")", 150);
+        btn2.setOnAction(e -> {
+            if(p.buy(150)) p.upgSpeed++;
+            // 修復：更新文字時包含價錢顯示
+            btn2.setText("注入加速 (Lv."+p.upgSpeed+") [Cost: 150¢]");
+            updateShopUI();
+        });
+
+        Button btnEmp = createShopButton("EMP 脈衝彈 (炸 firewall)", 200); btnEmp.setOnAction(e -> { if(p.buy(200)) p.empCharges++; updateShopUI(); }); Button btnSlow = createShopButton("超頻沙漏 (緩速破解)", 250); btnSlow.setOnAction(e -> { if(p.buy(250)) p.slowCharges++; updateShopUI(); }); Button btnNext = createStyledButton(">>> INJECT PAYLOAD <<<"); btnNext.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; shopLayer.setVisible(false); gameLayer.setVisible(true); engine.resetEvents(); app.checkBossLevel(); }); shopBox.getChildren().addAll(shopTitle, coinDisplay, btn1, btn2, btnEmp, btnSlow, btnNext); shopLayer.getChildren().add(shopBox); shopLayer.setVisible(false);
+    }
+
     private void buildTalentLayerStructure() { talentLayer = new StackPane(); talentLayer.setStyle("-fx-background-color: #0d0214;"); treeGroup = new Group(); StackPane treePane = new StackPane(treeGroup); treePane.setAlignment(Pos.CENTER); treePane.setPrefSize(700, 320); descBox = new VBox(5); descBox.setAlignment(Pos.CENTER); descBox.setStyle("-fx-background-color: #160826; -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 15; -fx-max-width: 550;"); talentNameLabel = new Label(">>> 點擊任意節點解密核心天賦 <<<"); talentNameLabel.setTextFill(Color.CYAN); talentNameLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 16)); talentEffectLabel = new Label("選取節點以加載組件加成數據。"); talentEffectLabel.setTextFill(Color.LIGHTGRAY); talentEffectLabel.setFont(Font.font("Consolas", 14)); talentCostLabel = new Label(""); talentCostLabel.setTextFill(Color.GOLD); talentCostLabel.setFont(Font.font("Consolas", 14)); btnUpgradeTalent = createStyledButton(">>> 寫入天賦線路 <<<"); btnUpgradeTalent.setStyle("-fx-background-color: #3b0222; -fx-text-fill: #FF007F; -fx-border-color: #FF007F; -fx-font-family: 'Consolas'; -fx-font-weight: bold; -fx-cursor: hand;"); btnUpgradeTalent.setVisible(false); descBox.getChildren().addAll(talentNameLabel, talentEffectLabel, talentCostLabel, btnUpgradeTalent); VBox talentLayout = new VBox(15); talentLayout.setAlignment(Pos.CENTER); Label title = new Label("== CYBERNETIC TALENT TREE =="); title.setTextFill(Color.web("#FF007F")); title.setFont(Font.font("Consolas", FontWeight.BOLD, 35)); talentCoinDisplay = new Label("LEGACY COINS: 0 ¢"); talentCoinDisplay.setTextFill(Color.GOLD); talentCoinDisplay.setFont(Font.font("Consolas", 24)); Button btnBack = createStyledButton("<<< RETURN TO MENU"); btnBack.setOnAction(e -> app.closeTalentTree()); talentLayout.getChildren().addAll(title, talentCoinDisplay, treePane, descBox, btnBack); talentLayer.getChildren().add(talentLayout); talentLayer.setVisible(false); drawTalentTreeNodes(); }
     private void drawTalentTreeNodes() { treeGroup.getChildren().clear(); Group lineLayer = new Group(); Group nodeLayer = new Group(); treeGroup.getChildren().addAll(lineLayer, nodeLayer); StackPane corePane = new StackPane(); corePane.setMinSize(80, 80); corePane.setMaxSize(80, 80); Circle coreCircle = new Circle(32); coreCircle.setStrokeWidth(3); coreCircle.setStroke(Color.CYAN); coreCircle.setFill(Color.rgb(0, 40, 50)); Label coreLabel = new Label("🌐"); coreLabel.setFont(Font.font("Segoe UI Emoji", 18)); coreLabel.setTextFill(Color.WHITE); corePane.getChildren().addAll(coreCircle, coreLabel); corePane.setTranslateX(-40); corePane.setTranslateY(-40); nodeLayer.getChildren().add(corePane); buildTalentBranch(1, 3, 270, 70, new Color[]{Color.CYAN, Color.rgb(0, 40, 50)}, 0, 0, "⚡", lineLayer, nodeLayer); buildTalentBranch(2, 5, 150, 70, new Color[]{Color.LIME, Color.rgb(0, 40, 0)}, 0, 0, "🔓", lineLayer, nodeLayer); buildTalentBranch(3, 3, 30, 70, new Color[]{Color.ORANGE, Color.rgb(40, 20, 0)}, 0, 0, "⏳", lineLayer, nodeLayer); }
     private void buildTalentBranch(int id, int maxLevel, double angle, double startRadius, Color[] colors, double parentX, double parentY, String iconSymbol, Group lineLayer, Group nodeLayer) { double currentParentX = parentX; double currentParentY = parentY; double labelR = startRadius + (maxLevel * 52) + 25; double lx = labelR * Math.cos(Math.toRadians(angle)); double ly = labelR * Math.sin(Math.toRadians(angle)); Label branchLabel = new Label(id == 1 ? "[ EMP MOD ]" : (id == 2 ? "[ FW BYPASS ]" : "[ BUFFER EXP ]")); branchLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 10)); branchLabel.setTextFill(colors[0]); branchLabel.setAlignment(Pos.CENTER); branchLabel.setPrefWidth(150); StackPane labelPane = new StackPane(branchLabel); labelPane.setTranslateX(lx - 75); labelPane.setTranslateY(ly - 10); nodeLayer.getChildren().add(labelPane); for (int i = 1; i <= maxLevel; i++) { double r = startRadius + (i-1) * 52; double x = r * Math.cos(Math.toRadians(angle)); double y = r * Math.sin(Math.toRadians(angle)); Color strokeColor = unlocked(id, i) ? colors[0] : (isNextAvailable(id, i) ? Color.LIGHTGRAY : Color.rgb(60, 60, 60)); Color fillColor = unlocked(id, i) ? colors[1] : (isNextAvailable(id, i) ? Color.rgb(30, 30, 35) : Color.rgb(15, 15, 15)); Line line = new Line(currentParentX, currentParentY, x, y); line.setStrokeWidth(3); line.setStroke(unlocked(id, i) ? colors[0] : Color.rgb(70, 70, 70)); lineLayer.getChildren().add(line); StackPane nodePane = new StackPane(); nodePane.setMinSize(40, 40); nodePane.setMaxSize(40, 40); Circle c = new Circle(18); c.setStrokeWidth(3); c.setStroke(strokeColor); c.setFill(fillColor); Button btn = new Button(iconSymbol); btn.setFont(Font.font("Segoe UI Emoji", 14)); btn.setTextFill(unlocked(id, i) ? Color.WHITE : (isNextAvailable(id, i) ? colors[0] : Color.rgb(80, 80, 80))); btn.setStyle("-fx-background-color: transparent; -fx-padding: 0; -fx-cursor: hand;"); final int branchId = id; final int nodeLevel = i; btn.setOnAction(e -> app.selectTalentNode(branchId, nodeLevel)); nodePane.getChildren().addAll(c, btn); nodePane.setTranslateX(x - 20); nodePane.setTranslateY(y - 20); nodeLayer.getChildren().add(nodePane); currentParentX = x; currentParentY = y; } }

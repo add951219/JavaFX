@@ -8,6 +8,8 @@ import javafx.scene.control.Label;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.media.AudioClip;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -27,6 +29,9 @@ public class HelloApplication extends Application {
     private int selectedBranch = 0;
     private int selectedLevel = 0;
     private AudioClip errorSound1, errorSound2, loseSound;
+
+    // 新增 BGM 播放器
+    private MediaPlayer bgmPlayer;
 
     private ExecutorService audioPool;
     private byte[] cachedSuccessBuf;
@@ -69,6 +74,24 @@ public class HelloApplication extends Application {
             loseSound = new AudioClip(getClass().getResource("/lose.mp3").toExternalForm());
         } catch (Exception e) {
             System.out.println("音效載入失敗！請確認 resources 資料夾中存有 error1.mp3、error2.mp3 與 lose.mp3");
+        }
+
+        // 載入並播放背景音樂
+        try {
+            Media bgmMedia = new Media(getClass().getResource("/bgm.mp3").toExternalForm());
+            bgmPlayer = new MediaPlayer(bgmMedia);
+            bgmPlayer.setCycleCount(MediaPlayer.INDEFINITE); // 設定無限循環
+            bgmPlayer.setVolume(0.5); // 預設音量 50%
+            bgmPlayer.play(); // 遊戲啟動時直接播放
+        } catch (Exception e) {
+            System.out.println("背景音樂載入失敗！請確認 resources 資料夾中存有 bgm.mp3");
+        }
+    }
+
+    // 讓 UIManager 可以調整音量
+    public void setBgmVolume(double vol) {
+        if (bgmPlayer != null) {
+            bgmPlayer.setVolume(vol);
         }
     }
 
@@ -179,7 +202,6 @@ public class HelloApplication extends Application {
             if (engine.currentState != HackEngine.GameState.PLAYING) return;
             long now = System.nanoTime();
 
-            // 環境詛咒視覺歪斜與干擾處理
             if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) {
                 ui.root.setTranslateX((engine.random.nextDouble() - 0.5) * 6.5);
                 ui.root.setTranslateY((engine.random.nextDouble() - 0.5) * 6.5);
