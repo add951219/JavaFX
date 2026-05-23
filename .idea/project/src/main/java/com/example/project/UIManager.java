@@ -23,7 +23,6 @@ public class UIManager {
     public Label firewallBarDisplay, interceptTimeDisplay, decryptTargetDisplay, decryptInputDisplay, decryptTimeDisplay;
     public Label gameOverReasonLabel, gameOverStatsLabel, skillDisplay, glitchWarningLabel, talentNameLabel, talentEffectLabel, talentCostLabel;
 
-    // === 核心改造：將 interceptTargetDisplay 改為 HBox 橫向字元容器，實現獨立霓虹打擊特效 ===
     public HBox interceptTargetDisplay;
 
     public Label versionLabel, systemStatusLabel, bootWarningLabel;
@@ -90,7 +89,7 @@ public class UIManager {
         uiBorder.setTextFill(Color.rgb(0, 255, 204, 0.5)); uiBorder.setFont(Font.font("Consolas", 20)); uiBorder.setAlignment(Pos.CENTER);
         VBox gameBox = new VBox(10); gameBox.setAlignment(Pos.CENTER);
         statusLabel = new Label(""); statusLabel.setTextFill(Color.CYAN); statusLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
-        glitchWarningLabel = new Label(" [系統狀態：傳輸環境安全]"); glitchWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 15)); glitchWarningLabel.setTextFill(Color.LIME);
+        glitchWarningLabel = new Label(" [系統狀態：傳传输環境安全]"); glitchWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 15)); glitchWarningLabel.setTextFill(Color.LIME);
         progressDisplay = new Label("LEVEL 1 [....☼....☼....☼....] 0%"); progressDisplay.setTextFill(Color.LIME); progressDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 28));
         comboDisplay = new Label("COMBO: x1.0"); comboDisplay.setTextFill(Color.YELLOW); comboDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
         gameBox.getChildren().addAll(statusLabel, glitchWarningLabel, comboDisplay, progressDisplay); gameLayer = new StackPane(uiBorder, gameBox); gameLayer.setVisible(false);
@@ -149,9 +148,28 @@ public class UIManager {
         scaleDown.setToX(0.0); scaleDown.setToY(0.0);
 
         ParallelTransition submerge = new ParallelTransition(fadeOut, scaleDown);
+
         SequentialTransition seq = new SequentialTransition(emerge, hold, submerge);
         seq.setOnFinished(e -> errorImg.setVisible(false));
         seq.play();
+    }
+
+    public void updateFirewallUI() {
+        int bars = (int) Math.max(0, Math.min(20, engine.firewallProgress * 20));
+        int dots = 20 - bars;
+        firewallBarDisplay.setText("[" + "|".repeat(bars) + ".".repeat(dots) + "]");
+    }
+
+    public void playFirewallSpacePopEffect() {
+        firewallBarDisplay.setTextFill(Color.WHITE);
+
+        ScaleTransition st = new ScaleTransition(Duration.millis(60), firewallBarDisplay);
+        st.setFromX(1.06); st.setFromY(1.06);
+        st.setToX(1.0); st.setToY(1.0);
+        st.setOnFinished(e -> {
+            firewallBarDisplay.setTextFill(Color.web("#33CCFF"));
+        });
+        st.play();
     }
 
     private ImageView loadEmergeErrorImage(String fileName) {
@@ -162,16 +180,19 @@ public class UIManager {
     }
 
     private void buildEventLayers() {
-        firewallLayer = new StackPane(); firewallLayer.setStyle("-fx-background-color: rgba(0, 80, 255, 0.6);"); VBox fwBox = new VBox(10); fwBox.setAlignment(Pos.CENTER); Label fwTitle = new Label("- FIREWALL -"); fwTitle.setTextFill(Color.CYAN); fwTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 30)); firewallBarDisplay = new Label("[||||||||||..........]"); firewallBarDisplay.setTextFill(Color.WHITE); firewallBarDisplay.setFont(Font.font("Consolas", 40)); fwBox.getChildren().addAll(fwTitle, new Label("SPACEBAR!"), firewallBarDisplay); firewallLayer.getChildren().add(fwBox); StackPane.setAlignment(fwBox, Pos.TOP_CENTER); fwBox.setTranslateY(100); firewallLayer.setVisible(false);
+        firewallLayer = new StackPane(); firewallLayer.setStyle("-fx-background-color: rgba(0, 80, 255, 0.4);"); VBox fwBox = new VBox(10); fwBox.setAlignment(Pos.CENTER); Label fwTitle = new Label("- FIREWALL BREAK ATTEMPT -"); fwTitle.setTextFill(Color.CYAN); fwTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
 
+        firewallBarDisplay = new Label("[||||||||||..........]");
+        firewallBarDisplay.setTextFill(Color.web("#33CCFF"));
+        firewallBarDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 40));
+
+        fwBox.getChildren().addAll(fwTitle, new Label("⚡ MASH SPACEBAR NOW ⚡"), firewallBarDisplay); firewallLayer.getChildren().add(fwBox); StackPane.setAlignment(fwBox, Pos.TOP_CENTER); fwBox.setTranslateY(100); firewallLayer.setVisible(false);
         interceptLayer = new StackPane(); interceptLayer.setStyle("-fx-background-color: rgba(100, 0, 150, 0.6);"); VBox intBox = new VBox(10); intBox.setAlignment(Pos.CENTER); Label altTitle = new Label("! INTERCEPT !"); altTitle.setTextFill(Color.ORANGE); altTitle.setFont(Font.font("Consolas", 30));
 
-        // === 改造：初始化為橫向包裝容器 ===
         interceptTargetDisplay = new HBox(15);
         interceptTargetDisplay.setAlignment(Pos.CENTER);
 
         interceptTimeDisplay = new Label("Time left: 3.0s"); interceptTimeDisplay.setTextFill(Color.WHITE); intBox.getChildren().addAll(altTitle, interceptTargetDisplay, interceptTimeDisplay); interceptLayer.getChildren().add(intBox); StackPane.setAlignment(intBox, Pos.BOTTOM_CENTER); intBox.setTranslateY(-100); interceptLayer.setVisible(false);
-
         decryptLayer = new StackPane(); decryptLayer.setStyle("-fx-background-color: rgba(0, 50, 0, 0.85);"); VBox decBox = new VBox(15); decBox.setAlignment(Pos.CENTER); Label decTitle = new Label("??? ENCRYPTED NODE ???"); decTitle.setTextFill(Color.LIME); decTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 35)); decryptTargetDisplay = new Label("MEMORIZE THIS"); decryptTargetDisplay.setTextFill(Color.WHITE); decryptTargetDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 50)); decryptInputDisplay = new Label("> _"); decryptInputDisplay.setTextFill(Color.CYAN); decryptInputDisplay.setFont(Font.font("Consolas", 40)); decryptTimeDisplay = new Label("Time left: 4.0s"); decryptTimeDisplay.setTextFill(Color.WHITE); decBox.getChildren().addAll(decTitle, decryptTargetDisplay, decryptInputDisplay, decryptTimeDisplay); decryptLayer.getChildren().add(decBox); decryptLayer.setVisible(false);
     }
 
@@ -180,17 +201,13 @@ public class UIManager {
     private void buildTalentLayerStructure() { talentLayer = new StackPane(); talentLayer.setStyle("-fx-background-color: #0d0214;"); treeGroup = new Group(); StackPane treePane = new StackPane(treeGroup); treePane.setAlignment(Pos.CENTER); treePane.setPrefSize(700, 320); descBox = new VBox(5); descBox.setAlignment(Pos.CENTER); descBox.setStyle("-fx-background-color: #160826; -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 15; -fx-max-width: 550;"); talentNameLabel = new Label(">>> 點擊任意節點解密核心天賦 <<<"); talentNameLabel.setTextFill(Color.CYAN); talentNameLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 16)); talentEffectLabel = new Label("選取節點以加載組件加成數據。"); talentEffectLabel.setTextFill(Color.LIGHTGRAY); talentEffectLabel.setFont(Font.font("Consolas", 14)); talentCostLabel = new Label(""); talentCostLabel.setTextFill(Color.GOLD); talentCostLabel.setFont(Font.font("Consolas", 14)); btnUpgradeTalent = createStyledButton(">>> 寫入天賦線路 <<<"); btnUpgradeTalent.setStyle("-fx-background-color: #3b0222; -fx-text-fill: #FF007F; -fx-border-color: #FF007F; -fx-font-family: 'Consolas'; -fx-font-weight: bold; -fx-cursor: hand;"); btnUpgradeTalent.setVisible(false); descBox.getChildren().addAll(talentNameLabel, talentEffectLabel, talentCostLabel, btnUpgradeTalent); VBox talentLayout = new VBox(15); talentLayout.setAlignment(Pos.CENTER); Label title = new Label("== CYBERNETIC TALENT TREE =="); title.setTextFill(Color.web("#FF007F")); title.setFont(Font.font("Consolas", FontWeight.BOLD, 35)); talentCoinDisplay = new Label("LEGACY COINS: 0 ¢"); talentCoinDisplay.setTextFill(Color.GOLD); talentCoinDisplay.setFont(Font.font("Consolas", 24)); Button btnBack = createStyledButton("<<< RETURN TO MENU"); btnBack.setOnAction(e -> app.closeTalentTree()); talentLayout.getChildren().addAll(title, talentCoinDisplay, treePane, descBox, btnBack); talentLayer.getChildren().add(talentLayout); talentLayer.setVisible(false); drawTalentTreeNodes(); }
     private void drawTalentTreeNodes() { treeGroup.getChildren().clear(); Group lineLayer = new Group(); Group nodeLayer = new Group(); treeGroup.getChildren().addAll(lineLayer, nodeLayer); StackPane corePane = new StackPane(); corePane.setMinSize(80, 80); corePane.setMaxSize(80, 80); Circle coreCircle = new Circle(32); coreCircle.setStrokeWidth(3); coreCircle.setStroke(Color.CYAN); coreCircle.setFill(Color.rgb(0, 40, 50)); Label coreLabel = new Label("🌐"); coreLabel.setFont(Font.font("Segoe UI Emoji", 18)); coreLabel.setTextFill(Color.WHITE); corePane.getChildren().addAll(coreCircle, coreLabel); corePane.setTranslateX(-40); corePane.setTranslateY(-40); nodeLayer.getChildren().add(corePane); buildTalentBranch(1, 3, 270, 70, new Color[]{Color.CYAN, Color.rgb(0, 40, 50)}, 0, 0, "⚡", lineLayer, nodeLayer); buildTalentBranch(2, 5, 150, 70, new Color[]{Color.LIME, Color.rgb(0, 40, 0)}, 0, 0, "🔓", lineLayer, nodeLayer); buildTalentBranch(3, 3, 30, 70, new Color[]{Color.ORANGE, Color.rgb(40, 20, 0)}, 0, 0, "⏳", lineLayer, nodeLayer); }
     private void buildTalentBranch(int id, int maxLevel, double angle, double startRadius, Color[] colors, double parentX, double parentY, String iconSymbol, Group lineLayer, Group nodeLayer) { double currentParentX = parentX; double currentParentY = parentY; double labelR = startRadius + (maxLevel * 52) + 25; double lx = labelR * Math.cos(Math.toRadians(angle)); double ly = labelR * Math.sin(Math.toRadians(angle)); Label branchLabel = new Label(id == 1 ? "[ EMP MOD ]" : (id == 2 ? "[ FW BYPASS ]" : "[ BUFFER EXP ]")); branchLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 10)); branchLabel.setTextFill(colors[0]); branchLabel.setAlignment(Pos.CENTER); branchLabel.setPrefWidth(150); StackPane labelPane = new StackPane(branchLabel); labelPane.setTranslateX(lx - 75); labelPane.setTranslateY(ly - 10); nodeLayer.getChildren().add(labelPane); for (int i = 1; i <= maxLevel; i++) { double r = startRadius + (i-1) * 52; double x = r * Math.cos(Math.toRadians(angle)); double y = r * Math.sin(Math.toRadians(angle)); Color strokeColor = unlocked(id, i) ? colors[0] : (isNextAvailable(id, i) ? Color.LIGHTGRAY : Color.rgb(60, 60, 60)); Color fillColor = unlocked(id, i) ? colors[1] : (isNextAvailable(id, i) ? Color.rgb(30, 30, 35) : Color.rgb(15, 15, 15)); Line line = new Line(currentParentX, currentParentY, x, y); line.setStrokeWidth(3); line.setStroke(unlocked(id, i) ? colors[0] : Color.rgb(70, 70, 70)); lineLayer.getChildren().add(line); StackPane nodePane = new StackPane(); nodePane.setMinSize(40, 40); nodePane.setMaxSize(40, 40); Circle c = new Circle(18); c.setStrokeWidth(3); c.setStroke(strokeColor); c.setFill(fillColor); Button btn = new Button(iconSymbol); btn.setFont(Font.font("Segoe UI Emoji", 14)); btn.setTextFill(unlocked(id, i) ? Color.WHITE : (isNextAvailable(id, i) ? colors[0] : Color.rgb(80, 80, 80))); btn.setStyle("-fx-background-color: transparent; -fx-padding: 0; -fx-cursor: hand;"); final int branchId = id; final int nodeLevel = i; btn.setOnAction(e -> app.selectTalentNode(branchId, nodeLevel)); nodePane.getChildren().addAll(c, btn); nodePane.setTranslateX(x - 20); nodePane.setTranslateY(y - 20); nodeLayer.getChildren().add(nodePane); currentParentX = x; currentParentY = y; } }
-    private boolean unlocked(int id, int level) { if (id == 1) return p.talentStartEMP >= level; if (id == 2) return p.talentWeakFW >= level; if (id == 3) return p.talentFlashTime >= level; return false; }
-    private boolean isNextAvailable(int id, int level) { if (id == 1) return p.talentStartEMP == level - 1; if (id == 2) return p.talentWeakFW == level - 1; if (id == 3) return p.talentFlashTime == level - 1; return false; }
     public void updateComboDisplay(double multiplier) { comboDisplay.setText(String.format("COMBO: x%.1f", multiplier)); if (multiplier >= 3.0) { comboDisplay.setTextFill(Color.web("#FF007F")); uiBorder.setStyle(engine.random.nextInt(3) == 0 ? "-fx-text-fill: #FF007F; -fx-effect: dropshadow(three-pass-box, #FF007F, 10, 0, 0, 0);" : "-fx-text-fill: rgb(0, 255, 204); -fx-effect: none;"); } else if (multiplier >= 2.0) { comboDisplay.setTextFill(Color.ORANGE); uiBorder.setStyle("-fx-text-fill: orange;"); } else { comboDisplay.setTextFill(Color.YELLOW); uiBorder.setStyle("-fx-text-fill: rgba(0, 255, 204, 0.5);"); } }
     public void playComboHitEffect(double multiplier) { if (multiplier < 2.0) return; double intensity = (multiplier >= 3.0) ? 5.0 : 2.5; TranslateTransition tt = new TranslateTransition(Duration.millis(30), gameLayer); tt.setFromX((engine.random.nextDouble() - 0.5) * intensity); tt.setFromY((engine.random.nextDouble() - 0.5) * intensity); tt.setToX(0f); tt.setToY(0f); tt.playFromStart(); }
     public void playDescFadeIn() { FadeTransition ft = new FadeTransition(Duration.millis(250), descBox); ft.setFromValue(0.2); ft.setToValue(1.0); ft.play(); }
     public void updateGlitchDisplay() { if (engine.activeGlitch == HackEngine.GlitchType.NONE) { glitchWarningLabel.setText(" [系統狀態：傳輸環境安全]"); glitchWarningLabel.setTextFill(Color.LIME); } else if (engine.activeGlitch == HackEngine.GlitchType.NETWORK_LAG) { glitchWarningLabel.setText("⚠ 環境詛咒：[NETWORK_LAG] 延遲嚴重 ⚠"); glitchWarningLabel.setTextFill(Color.ORANGE); } else if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { glitchWarningLabel.setText("⚠ 環境詛咒：[VISUAL_DISTORTION] 視覺污染 ⚠"); glitchWarningLabel.setTextFill(Color.web("#FF007F")); } else if (engine.activeGlitch == HackEngine.GlitchType.CORE_OVERLOAD) { glitchWarningLabel.setText("⚠ 環境詛咒：[CORE_OVERLOAD] 核心超載 ⚠"); glitchWarningLabel.setTextFill(Color.RED); } }
     public void updateShopUI() { coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢"); skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges); }
     public void updateTalentUI() { talentCoinDisplay.setText("LEGACY COINS: " + p.legacyCoins + " ¢"); highScoreDisplay.setText("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢"); drawTalentTreeNodes(); }
-    public void updateFirewallUI() { firewallBarDisplay.setText("[" + "|".repeat((int)(engine.firewallProgress*20)) + ".".repeat(20-(int)(engine.firewallProgress*20)) + "]"); }
 
-    // === 核心修改：渲染新楓之谷跳舞雞霓虹打擊動態的 WASD ===
     public void updateInterceptUI() {
         interceptTargetDisplay.getChildren().clear();
         String seq = engine.targetSequence;
@@ -199,11 +216,9 @@ public class UIManager {
             letterLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 42));
 
             if (i < engine.sequenceIndex) {
-                // 已輸入正確：亮起極高飽和翠綠色，並賦予強烈外發光
                 letterLabel.setTextFill(Color.web("#00FFCC"));
                 letterLabel.setStyle("-fx-effect: dropshadow(three-pass-box, #00FFCC, 15, 0.6, 0, 0);");
 
-                // 仿跳舞雞精準震撼反饋：如果是玩家剛剛敲對的那一個字，播放 120 毫秒的膨脹衝擊波動畫
                 if (i == engine.sequenceIndex - 1) {
                     letterLabel.setScaleX(1.5);
                     letterLabel.setScaleY(1.5);
@@ -213,11 +228,9 @@ public class UIManager {
                     st.play();
                 }
             } else if (i == engine.sequenceIndex) {
-                // 當前正等待輸入的焦點字元：高亮白色並用霓虹框線包覆提示玩家
                 letterLabel.setTextFill(Color.WHITE);
                 letterLabel.setStyle("-fx-background-color: rgba(0, 255, 204, 0.25); -fx-border-color: #00FFCC; -fx-border-width: 2; -fx-padding: 0 8 0 8; -fx-border-radius: 4; -fx-background-radius: 4;");
             } else {
-                // 尚未輸入的字元：維持賽博深灰色
                 letterLabel.setTextFill(Color.web("#444444"));
                 letterLabel.setStyle("-fx-effect: none;");
             }
@@ -225,7 +238,6 @@ public class UIManager {
         }
     }
 
-    // === 核心修改：解密矩陣輸入正確時也加入震撼打擊特效 ===
     public void updateDecryptUI() {
         decryptInputDisplay.setText("> " + engine.decryptInput + "_");
         decryptInputDisplay.setTextFill(Color.web("#00FFCC"));
@@ -235,6 +247,20 @@ public class UIManager {
         st.setFromX(1.1); st.setFromY(1.1);
         st.setToX(1.0); st.setToY(1.0);
         st.play();
+    }
+
+    private boolean unlocked(int id, int level) {
+        if (id == 1) return p.talentStartEMP >= level;
+        if (id == 2) return p.talentWeakFW >= level;
+        if (id == 3) return p.talentFlashTime >= level;
+        return false;
+    }
+
+    private boolean isNextAvailable(int id, int level) {
+        if (id == 1) return p.talentStartEMP == level - 1;
+        if (id == 2) return p.talentWeakFW == level - 1;
+        if (id == 3) return p.talentFlashTime == level - 1;
+        return false;
     }
 
     public void updateASCIIProgress() { StringBuilder sb = new StringBuilder("["); for (int i=1; i<=20; i++) { if (i <= (engine.progress*20)) sb.append("|"); else sb.append("."); } sb.append("] ").append((int)(engine.progress*100)).append("%"); progressDisplay.setText("LEVEL " + p.currentLevel + " " + sb.toString()); if (!engine.isHacking && !engine.isFirewallFight) statusLabel.setText(">>> WARNING: LOSING PROGRESS... [RELEASED]"); else if (engine.isHacking) statusLabel.setText(">>> INJECTING... BREACHING LAYER " + (engine.currentSegment+1)); }
