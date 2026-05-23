@@ -84,7 +84,7 @@ public class HelloApplication extends Application {
 
             if (engine.currentState != HackEngine.GameState.PLAYING) return;
 
-            // 施放技能 (新增：CORE_OVERLOAD 詛咒封鎖判定)
+            // 施放技能 (CORE_OVERLOAD 詛咒封鎖判定)
             if (e.getCode() == KeyCode.DIGIT1) {
                 if (engine.activeGlitch == HackEngine.GlitchType.CORE_OVERLOAD) {
                     playErrorSound();
@@ -124,8 +124,6 @@ public class HelloApplication extends Application {
                             ui.typeWriterUpdate(">>> PACKET SECURED.");
                             if(!engine.isFirewallFight) engine.currentSegment++;
                         }
-                    } else if (inputKey.matches("[A-Z]")) {
-                        playErrorSound();
                     }
                 }
                 e.consume();
@@ -144,7 +142,6 @@ public class HelloApplication extends Application {
                             engine.currentSegment++;
                         } else {
                             ui.shakeScreen();
-                            playErrorSound();
                             engine.decryptInput = "";
                             engine.decryptDeadline -= 1_000_000_000L;
                             ui.updateDecryptUI();
@@ -165,13 +162,13 @@ public class HelloApplication extends Application {
 
             long now = System.nanoTime();
 
-            // 修正：結合 VISUAL_DISTORTION 視覺詛咒進行紅光代碼污染突變
+            // 結合 VISUAL_DISTORTION 視覺詛咒進行紅光代碼污染突變
             if (engine.random.nextInt(10) == 0) {
                 ui.matrixBg.setText(engine.generateRandomCode());
                 if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) {
-                    ui.matrixBg.setTextFill(Color.rgb(255, 0, 50, 0.35)); // 變亮紅干擾
+                    ui.matrixBg.setTextFill(Color.rgb(255, 0, 50, 0.35));
                 } else {
-                    ui.matrixBg.setTextFill(Color.rgb(0, 255, 204, 0.15)); // 正常青綠色
+                    ui.matrixBg.setTextFill(Color.rgb(0, 255, 204, 0.15));
                 }
             }
 
@@ -237,8 +234,8 @@ public class HelloApplication extends Application {
     }
 
     public void checkBossLevel() {
-        engine.rollGlitch(p.currentLevel); // 進入關卡：先骰出本層環境詛咒
-        ui.updateGlitchDisplay();          // 更新警報列介面
+        engine.rollGlitch(p.currentLevel);
+        ui.updateGlitchDisplay();
 
         if (engine.isBossLevel(p.currentLevel)) {
             engine.totalSegments = 8;
@@ -256,7 +253,6 @@ public class HelloApplication extends Application {
         ui.shakeScreen();
         boolean isBoss = engine.isBossLevel(p.currentLevel);
 
-        // 修正：引入 NETWORK_LAG 詛咒時間縮短係數 (打打折變為 0.6 倍時間)
         double lagModifier = (engine.activeGlitch == HackEngine.GlitchType.NETWORK_LAG) ? 0.6 : 1.0;
 
         if (isBoss) {
@@ -277,7 +273,6 @@ public class HelloApplication extends Application {
                 for (int i=0; i<len; i++) sb.append(pool[engine.random.nextInt(pool.length)]);
                 engine.targetSequence = sb.toString(); ui.updateInterceptUI();
 
-                // 套用延遲系數
                 engine.interceptDeadline = System.nanoTime() + (long)((Math.max(1.5, 5.0 - p.currentLevel * 0.2)) * 1_000_000_000L * lagModifier);
                 ui.interceptLayer.setVisible(true);
             } else {
@@ -289,14 +284,13 @@ public class HelloApplication extends Application {
                 long now = System.nanoTime();
                 ui.decryptLayer.setVisible(true);
 
-                // 套用天賦加成與延遲詛咒係數
                 engine.decryptFlashEndTime = now + 500_000_000L + (p.talentFlashTime * 150_000_000L);
                 engine.decryptDeadline = now + (long)(5.0 * 1_000_000_000L * lagModifier);
             }
         }
     }
 
-    public void handleHoneypotTrap() { /* 保持原樣 */ }
+    public void handleHoneypotTrap() { }
 
     public void handleEventFailure() {
         engine.isInterceptFight = false; engine.isDecryptFight = false;
@@ -369,6 +363,9 @@ public class HelloApplication extends Application {
         } else {
             ui.talentCostLabel.setText("狀態：[ 核心未串接 - 需要解鎖前置等階線路 ]"); ui.talentCostLabel.setTextFill(Color.RED); ui.btnUpgradeTalent.setVisible(false);
         }
+
+        // 新增：文字和按鈕刷新完畢後，觸發 View 的動態淡入特效
+        ui.playDescFadeIn();
     }
 
     private void executeSelectedUpgrade(int branchId, int cost) {

@@ -1,5 +1,6 @@
 package com.example.project;
 
+import javafx.animation.FadeTransition;
 import javafx.animation.TranslateTransition;
 import javafx.geometry.Pos;
 import javafx.scene.Group;
@@ -31,11 +32,13 @@ public class UIManager {
     public Label gameOverReasonLabel, gameOverStatsLabel, skillDisplay;
     public Button honeypotBtn;
 
-    // 新增：詛咒狀態警告標籤
+    // 詛咒狀態警告標籤
     public Label glitchWarningLabel;
 
+    // 動態天賦說明面板元件
     public Label talentNameLabel, talentEffectLabel, talentCostLabel;
     public Button btnUpgradeTalent;
+    public VBox descBox; // 成員變數，用於控制動態面板動畫
 
     private Group treeGroup;
     private List<Circle> talentCircles = new ArrayList<>();
@@ -109,9 +112,9 @@ public class UIManager {
         statusLabel.setTextFill(Color.CYAN);
         statusLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
 
-        // 新增：將詛咒警報警告位置塞在狀態欄下方
-        glitchWarningLabel = new Label("");
+        glitchWarningLabel = new Label(" [系統狀態：傳輸環境安全]");
         glitchWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 15));
+        glitchWarningLabel.setTextFill(Color.LIME);
 
         progressDisplay = new Label("LEVEL 1 [....☼....☼....☼....] 0%");
         progressDisplay.setTextFill(Color.LIME);
@@ -141,6 +144,7 @@ public class UIManager {
         buildEventLayers();
         buildRouteLayer();
         buildShopLayer();
+
         buildTalentLayerStructure();
 
         // 暫停層
@@ -314,7 +318,8 @@ public class UIManager {
         treePane.setAlignment(Pos.CENTER);
         treePane.setPrefSize(700, 320);
 
-        VBox descBox = new VBox(5);
+        // 解密數據面板 (Description Box)
+        descBox = new VBox(5);
         descBox.setAlignment(Pos.CENTER);
         descBox.setStyle("-fx-background-color: #160826; -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 15; -fx-max-width: 550;");
 
@@ -363,17 +368,62 @@ public class UIManager {
         talentButtons.clear();
         talentLines.clear();
 
-        Circle coreCircle = createTalentNodeCircle(0, 0, 32, true, Color.CYAN, Color.rgb(0, 40, 50));
-        Label coreLabel = createTalentNodeLabel(0, 0, "🌐", true, 18);
-        treeGroup.getChildren().addAll(coreCircle, coreLabel);
+        // 核心對齊演算法：利用雙重 Group 進行前後景分層 (Layering)
+        Group lineLayer = new Group();
+        Group nodeLayer = new Group();
+        treeGroup.getChildren().addAll(lineLayer, nodeLayer);
 
-        buildTalentBranch(1, 3, 270, 70, new Color[]{Color.CYAN, Color.rgb(0, 40, 50)}, coreCircle, "⚡");
-        buildTalentBranch(2, 5, 150, 70, new Color[]{Color.LIME, Color.rgb(0, 40, 0)}, coreCircle, "🔓");
-        buildTalentBranch(3, 3, 30, 70, new Color[]{Color.ORANGE, Color.rgb(40, 20, 0)}, coreCircle, "⏳");
+        // 核心中心節點：使用 StackPane 包裹並將 Top-Left 偏移 -40，使 (0,0) 成為中心幾何起點
+        StackPane corePane = new StackPane();
+        corePane.setMinSize(80, 80);
+        corePane.setMaxSize(80, 80);
+
+        Circle coreCircle = new Circle(32);
+        coreCircle.setStrokeWidth(3);
+        coreCircle.setStroke(Color.CYAN);
+        coreCircle.setFill(Color.rgb(0, 40, 50));
+
+        Label coreLabel = new Label("🌐");
+        coreLabel.setFont(Font.font("Segoe UI Emoji", 18));
+        coreLabel.setTextFill(Color.WHITE);
+
+        corePane.getChildren().addAll(coreCircle, coreLabel);
+        corePane.setTranslateX(-40);
+        corePane.setTranslateY(-40);
+        nodeLayer.getChildren().add(corePane);
+
+        // --- 上方分支：控制組件優化 (EMP, 3級) | 圖標：⚡ ---
+        buildTalentBranch(1, 3, 270, 70, new Color[]{Color.CYAN, Color.rgb(0, 40, 50)}, 0, 0, "⚡", lineLayer, nodeLayer);
+
+        // --- 左下分支：防火牆漏洞利用 (WeakFW, 5級) | 圖標：🔓 ---
+        buildTalentBranch(2, 5, 150, 70, new Color[]{Color.LIME, Color.rgb(0, 40, 0)}, 0, 0, "🔓", lineLayer, nodeLayer);
+
+        // --- 右下分支：緩衝記憶體擴充 (FlashTime, 3級) | 圖標：⏳ ---
+        buildTalentBranch(3, 3, 30, 70, new Color[]{Color.ORANGE, Color.rgb(40, 20, 0)}, 0, 0, "⏳", lineLayer, nodeLayer);
     }
 
-    private void buildTalentBranch(int id, int maxLevel, double angle, double startRadius, Color[] colors, Circle parentCircle, String iconSymbol) {
-        Circle currentParent = parentCircle;
+    // 將線段與圓圈分流至不同底圖層
+    private void buildTalentBranch(int id, int maxLevel, double angle, double startRadius, Color[] colors,
+                                   double parentX, double parentY, String iconSymbol, Group lineLayer, Group nodeLayer) {
+        double currentParentX = parentX;
+        double currentParentY = parentY;
+
+        // 分支文字標籤位置外移
+        double labelR = startRadius + (maxLevel * 52) + 25;
+        double lx = labelR * Math.cos(Math.toRadians(angle));
+        double ly = labelR * Math.sin(Math.toRadians(angle));
+
+        Label branchLabel = new Label(id == 1 ? "[ EMP MOD ]" : (id == 2 ? "[ FW BYPASS ]" : "[ BUFFER EXP ]"));
+        branchLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 10));
+        branchLabel.setTextFill(colors[0]);
+        branchLabel.setAlignment(Pos.CENTER);
+        branchLabel.setPrefWidth(150);
+
+        StackPane labelPane = new StackPane(branchLabel);
+        labelPane.setTranslateX(lx - 75);
+        labelPane.setTranslateY(ly - 10);
+        nodeLayer.getChildren().add(labelPane);
+
         for (int i = 1; i <= maxLevel; i++) {
             double r = startRadius + (i-1) * 52;
             double x = r * Math.cos(Math.toRadians(angle));
@@ -384,35 +434,52 @@ public class UIManager {
             Color iconColor = Color.rgb(80, 80, 80);
 
             if (unlocked(id, i)) {
-                strokeColor = colors[0]; fillColor = colors[1]; iconColor = Color.WHITE;
+                strokeColor = colors[0];
+                fillColor = colors[1];
+                iconColor = Color.WHITE;
             } else if (isNextAvailable(id, i)) {
-                strokeColor = Color.LIGHTGRAY; fillColor = Color.rgb(30, 30, 35); iconColor = colors[0];
+                strokeColor = Color.LIGHTGRAY;
+                fillColor = Color.rgb(30, 30, 35);
+                iconColor = colors[0];
             }
 
+            // 完美對齊關鍵 1：連線由父中心直連子中心，並丟進獨立的 lineLayer 底層，確保線段被壓在圓圈下方！
+            Line line = new Line(currentParentX, currentParentY, x, y);
+            line.setStrokeWidth(3);
+            if (unlocked(id, i)) line.setStroke(colors[0]); else line.setStroke(Color.rgb(70, 70, 70));
+            lineLayer.getChildren().add(line);
+            talentLines.add(line);
+
+            // 完美對齊關鍵 2：將 nodePane 尺寸鎖定為 40x40，並向左上偏移 -20 半徑，使其幾何中心完美壓在線路上
+            StackPane nodePane = new StackPane();
+            nodePane.setMinSize(40, 40);
+            nodePane.setMaxSize(40, 40);
+
             Circle c = new Circle(18);
-            c.setTranslateX(x); c.setTranslateY(y);
-            c.setStrokeWidth(3); c.setStroke(strokeColor); c.setFill(fillColor);
+            c.setStrokeWidth(3);
+            c.setStroke(strokeColor);
+            c.setFill(fillColor);
 
             Button btn = new Button(iconSymbol);
             btn.setFont(Font.font("Segoe UI Emoji", 14));
             btn.setTextFill(iconColor);
             btn.setStyle("-fx-background-color: transparent; -fx-padding: 0; -fx-cursor: hand;");
-            btn.setTranslateX(x - 12); btn.setTranslateY(y - 12);
 
             final int branchId = id;
             final int nodeLevel = i;
             btn.setOnAction(e -> app.selectTalentNode(branchId, nodeLevel));
 
-            Line line = createConnectionLine(
-                    (currentParent.getRadius()+3) * Math.cos(Math.toRadians(angle)) + currentParent.getTranslateX(),
-                    (currentParent.getRadius()+3) * Math.sin(Math.toRadians(angle)) + currentParent.getTranslateY(),
-                    (18-3) * Math.cos(Math.toRadians(angle+180)) + x,
-                    (18-3) * Math.sin(Math.toRadians(angle+180)) + y,
-                    unlocked(id, i), colors[0]
-            );
+            nodePane.getChildren().addAll(c, btn);
+            nodePane.setTranslateX(x - 20);
+            nodePane.setTranslateY(y - 20);
 
-            treeGroup.getChildren().addAll(line, c, btn);
-            currentParent = c;
+            nodeLayer.getChildren().add(nodePane);
+
+            talentCircles.add(c);
+            talentButtons.add(btn);
+
+            currentParentX = x;
+            currentParentY = y;
         }
     }
 
@@ -430,35 +497,16 @@ public class UIManager {
         return false;
     }
 
-    private Circle createTalentNodeCircle(double x, double y, double radius, boolean unlocked, Color unlockedStroke, Color unlockedFill) {
-        Circle c = new Circle(radius);
-        c.setTranslateX(x); c.setTranslateY(y);
-        c.setStrokeWidth(3);
-        if (unlocked) { c.setStroke(unlockedStroke); c.setFill(unlockedFill); }
-        else { c.setStroke(Color.rgb(100, 100, 100)); c.setFill(Color.rgb(20, 20, 20)); }
-        return c;
+    public void playDescFadeIn() {
+        FadeTransition ft = new FadeTransition(Duration.millis(250), descBox);
+        ft.setFromValue(0.2);
+        ft.setToValue(1.0);
+        ft.play();
     }
 
-    private Label createTalentNodeLabel(double x, double y, String text, boolean unlocked, int fontSize) {
-        Label l = new Label(text);
-        l.setFont(Font.font("Segoe UI Emoji", fontSize));
-        l.setTranslateX(x - 10); l.setTranslateY(y - 12);
-        if (unlocked) l.setTextFill(Color.WHITE); else l.setTextFill(Color.rgb(150, 150, 150));
-        l.setAlignment(Pos.CENTER);
-        return l;
-    }
-
-    private Line createConnectionLine(double startX, double startY, double endX, double endY, boolean unlocked, Color unlockedColor) {
-        Line line = new Line(startX, startY, endX, endY);
-        line.setStrokeWidth(3);
-        if (unlocked) line.setStroke(unlockedColor); else line.setStroke(Color.rgb(70, 70, 70));
-        return line;
-    }
-
-    // 新增：刷新環境詛咒警告文字的頂層方法
     public void updateGlitchDisplay() {
         if (engine.activeGlitch == HackEngine.GlitchType.NONE) {
-            glitchWarningLabel.setText("[系統狀態：傳輸環境安全]");
+            glitchWarningLabel.setText(" [系統狀態：傳輸環境安全]");
             glitchWarningLabel.setTextFill(Color.LIME);
         } else if (engine.activeGlitch == HackEngine.GlitchType.NETWORK_LAG) {
             glitchWarningLabel.setText("⚠ 環境詛咒：[NETWORK_LAG] 延遲嚴重 - 倒數時間縮短 40% ⚠");
@@ -472,7 +520,6 @@ public class UIManager {
         }
     }
 
-    // --- 介面工具方法 ---
     public void updateShopUI() {
         coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢");
         skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges);
