@@ -18,11 +18,12 @@ public class UIManager {
     private final HelloApplication app; // 用來呼叫主程式的邏輯
 
     // 所有對外的圖層與 UI 元件
-    public StackPane root, menuLayer, introLayer, gameLayer, pauseLayer, firewallLayer, interceptLayer, decryptLayer, shopLayer, gameOverLayer, routeLayer;
-    public Label progressDisplay, statusLabel, uiBorder, matrixBg, coinDisplay, comboDisplay, highScoreDisplay;
+    public StackPane root, menuLayer, introLayer, gameLayer, pauseLayer, firewallLayer, interceptLayer, decryptLayer, shopLayer, gameOverLayer, routeLayer, talentLayer;
+    public Label progressDisplay, statusLabel, uiBorder, matrixBg, coinDisplay, comboDisplay, highScoreDisplay, talentCoinDisplay;
     public Label firewallBarDisplay, interceptTargetDisplay, interceptTimeDisplay, decryptTargetDisplay, decryptInputDisplay, decryptTimeDisplay;
     public Label gameOverReasonLabel, gameOverStatsLabel, skillDisplay;
     public Button honeypotBtn;
+    public Button btnTalent1, btnTalent2, btnTalent3; // 天賦按鈕
 
     public String currentTargetText = "";
 
@@ -50,19 +51,25 @@ public class UIManager {
         // 主選單
         menuLayer = new StackPane();
         menuLayer.setStyle("-fx-background-color: rgba(11, 12, 16, 0.95);");
-        VBox menuBox = new VBox(30);
+        VBox menuBox = new VBox(25);
         menuBox.setAlignment(Pos.CENTER);
         Label title = new Label("NEON BREACH");
         title.setTextFill(Color.CYAN);
         title.setFont(Font.font("Impact", 70));
 
-        highScoreDisplay = new Label("HIGHEST LAYER: " + p.highScore);
+        highScoreDisplay = new Label("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢");
         highScoreDisplay.setTextFill(Color.LIME);
         highScoreDisplay.setFont(Font.font("Consolas", 20));
 
         Button btnStart = createStyledButton(">>> INITIATE HACK <<<");
         btnStart.setOnAction(e -> app.startIntroSequence()); // 呼叫 Controller 邏輯
-        menuBox.getChildren().addAll(title, highScoreDisplay, btnStart);
+
+        // 新增：天賦樹切換按鈕
+        Button btnOpenTalents = createStyledButton(">>> CYBER TALENTS <<<");
+        btnOpenTalents.setStyle("-fx-background-color: black; -fx-text-fill: #FF007F; -fx-border-color: #FF007F; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;");
+        btnOpenTalents.setOnAction(e -> app.openTalentTree());
+
+        menuBox.getChildren().addAll(title, highScoreDisplay, btnStart, btnOpenTalents);
         menuLayer.getChildren().add(menuBox);
 
         // 開場動畫層
@@ -114,6 +121,7 @@ public class UIManager {
         buildEventLayers();
         buildRouteLayer();
         buildShopLayer();
+        buildTalentLayer(); // 新增：渲染天賦樹畫面
 
         // 暫停層
         pauseLayer = new StackPane();
@@ -150,7 +158,7 @@ public class UIManager {
         gameOverLayer.getChildren().add(overBox);
         gameOverLayer.setVisible(false);
 
-        root.getChildren().addAll(matrixBg, gameLayer, crtOverlay, firewallLayer, interceptLayer, decryptLayer, routeLayer, shopLayer, introLayer, gameOverLayer, pauseLayer, menuLayer);
+        root.getChildren().addAll(matrixBg, gameLayer, crtOverlay, firewallLayer, interceptLayer, decryptLayer, routeLayer, shopLayer, introLayer, gameOverLayer, talentLayer, pauseLayer, menuLayer);
     }
 
     private void buildEventLayers() {
@@ -276,10 +284,52 @@ public class UIManager {
         shopLayer.setVisible(false);
     }
 
+    // 新增：建構永久天賦畫面圖層
+    private void buildTalentLayer() {
+        talentLayer = new StackPane();
+        talentLayer.setStyle("-fx-background-color: #0d0214;"); // 深紫色駭客風格
+        VBox talentBox = new VBox(20);
+        talentBox.setAlignment(Pos.CENTER);
+
+        Label title = new Label("== CYBERNETIC TALENT TREE ==");
+        title.setTextFill(Color.web("#FF007F"));
+        title.setFont(Font.font("Consolas", FontWeight.BOLD, 35));
+
+        talentCoinDisplay = new Label("LEGACY COINS: 0 ¢");
+        talentCoinDisplay.setTextFill(Color.GOLD);
+        talentCoinDisplay.setFont(Font.font("Consolas", 24));
+
+        btnTalent1 = createShopButton("控制組件優化", 50);
+        btnTalent1.setOnAction(e -> app.upgradeTalent(1, 50));
+
+        btnTalent2 = createShopButton("防火牆漏洞利用", 75);
+        btnTalent2.setOnAction(e -> app.upgradeTalent(2, 75));
+
+        btnTalent3 = createShopButton("緩衝記憶體擴充", 100);
+        btnTalent3.setOnAction(e -> app.upgradeTalent(3, 100));
+
+        Button btnBack = createStyledButton("<<< RETURN TO MENU");
+        btnBack.setOnAction(e -> app.closeTalentTree());
+
+        talentBox.getChildren().addAll(title, talentCoinDisplay, btnTalent1, btnTalent2, btnTalent3, btnBack);
+        talentLayer.getChildren().add(talentBox);
+        talentLayer.setVisible(false);
+    }
+
     // --- UI 更新工具方法 ---
     public void updateShopUI() {
         coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢");
         skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges);
+    }
+
+    // 新增：更新天賦樹顯示
+    public void updateTalentUI() {
+        talentCoinDisplay.setText("LEGACY COINS: " + p.legacyCoins + " ¢");
+        highScoreDisplay.setText("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢");
+
+        btnTalent1.setText("控制組件優化 (Lv." + p.talentStartEMP + "/3) [50 ¢]\n-> 開局自帶同等數量 EMP 彈");
+        btnTalent2.setText("防火牆漏洞利用 (Lv." + p.talentWeakFW + "/5) [75 ¢]\n-> 降低防護牆初始厚度 " + (p.talentWeakFW * 5) + "%");
+        btnTalent3.setText("緩衝記憶體擴充 (Lv." + p.talentFlashTime + "/3) [100 ¢]\n-> 延長解密閃現記憶時間 +" + String.format("%.1f", p.talentFlashTime * 0.15) + "s");
     }
 
     public void updateFirewallUI() { firewallBarDisplay.setText("[" + "|".repeat((int)(engine.firewallProgress*20)) + ".".repeat(20-(int)(engine.firewallProgress*20)) + "]"); }

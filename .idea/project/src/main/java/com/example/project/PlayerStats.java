@@ -13,22 +13,26 @@ public class PlayerStats {
     public int upgBot = 0;
     public int upgMine = 0;
 
-    // 主動技能
+    // 主動技能 (消耗品)
     public int empCharges = 0;
     public int slowCharges = 0;
 
-    // 永久存檔數據
     public int highScore = 0;
-    public int legacyCoins = 0; // 局外永久貨幣 (每局結束後結算)
 
+    // 路線選擇倍率
     public double routeRewardMult = 1.0;
     public double routeDiffMult = 1.0;
 
-    // 存檔神器
+    // === 局外永久天賦系統變數 (新增) ===
+    public int legacyCoins = 0;       // 永久貨幣
+    public int talentStartEMP = 0;     // 開局自帶 EMP (Max 3)
+    public int talentWeakFW = 0;       // 弱化防火牆初始血量 (Max 5)
+    public int talentFlashTime = 0;    // 延長解密閃現記憶時間 (Max 3)
+
     private final Preferences prefs;
 
     public PlayerStats() {
-        // 初始化並綁定這個類別的存檔空間
+        // 初始化並載入系統註冊表中的存檔數據
         prefs = Preferences.userNodeForPackage(PlayerStats.class);
         loadData();
     }
@@ -41,24 +45,42 @@ public class PlayerStats {
         return false;
     }
 
-    // 每次重新開始遊戲時，只重置局內數據
+    // 新增：購買永久天賦用的方法
+    public boolean buyLegacy(int cost) {
+        if (legacyCoins >= cost) {
+            legacyCoins -= cost;
+            saveData(); // 扣錢後立刻存檔
+            return true;
+        }
+        return false;
+    }
+
     public void reset() {
         currentLevel = 1;
         darkCoins = 0;
         upgClick = 0; upgSpeed = 0; upgShield = 0; upgBot = 0; upgMine = 0;
-        empCharges = 0; slowCharges = 0;
+
+        // 變更：每次開局重置時，根據天賦賦予初始 EMP 數量
+        empCharges = talentStartEMP;
+        slowCharges = 0;
         routeRewardMult = 1.0; routeDiffMult = 1.0;
     }
 
-    // 從系統讀取存檔
+    // 新增：從硬碟讀取數據
     public void loadData() {
         highScore = prefs.getInt("highScore", 0);
         legacyCoins = prefs.getInt("legacyCoins", 0);
+        talentStartEMP = prefs.getInt("talentStartEMP", 0);
+        talentWeakFW = prefs.getInt("talentWeakFW", 0);
+        talentFlashTime = prefs.getInt("talentFlashTime", 0);
     }
 
-    // 將數據寫入系統存檔
+    // 新增：將數據寫入硬碟
     public void saveData() {
         prefs.putInt("highScore", highScore);
         prefs.putInt("legacyCoins", legacyCoins);
+        prefs.putInt("talentStartEMP", talentStartEMP);
+        prefs.putInt("talentWeakFW", talentWeakFW);
+        prefs.putInt("talentFlashTime", talentFlashTime);
     }
 }

@@ -19,7 +19,7 @@ public class HelloApplication extends Application {
     public final HackEngine engine = new HackEngine();
     public UIManager ui;
 
-    // 新增：音效播放器
+    // 音效播放器
     private AudioClip errorSound;
 
     @Override
@@ -34,12 +34,15 @@ public class HelloApplication extends Application {
         startGameLoop();
 
         stage.setScene(scene);
-        stage.setTitle("Neon Breach - Audio Feedback Edition");
+        stage.setTitle("Neon Breach - Meta Progression Edition");
         stage.show();
+
+        // 初始同步天賦樹資訊
+        ui.updateTalentUI();
         ui.root.requestFocus();
     }
 
-    // 新增：初始化音效的方法
+    // 初始化音效的方法
     private void initAudio() {
         try {
             // 讀取 resources 資料夾下的 error.mp3
@@ -50,7 +53,7 @@ public class HelloApplication extends Application {
         }
     }
 
-    // 新增：播放錯誤音效的捷徑
+    // 播放錯誤音效的捷徑
     private void playErrorSound() {
         if (errorSound != null) {
             errorSound.play();
@@ -238,7 +241,11 @@ public class HelloApplication extends Application {
         boolean isBoss = engine.isBossLevel(p.currentLevel);
 
         if (isBoss) {
-            engine.isFirewallFight = true; engine.firewallProgress = 0.5; ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
+            // 套用天賦2：弱化防火牆，初始血量降低 (進度增加代表防線變弱)
+            engine.isFirewallFight = true;
+            engine.firewallProgress = 0.5 + (p.talentWeakFW * 0.05);
+            ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
+
             engine.isInterceptFight = true; engine.sequenceIndex = 0;
             engine.targetSequence = "WASD";
             ui.updateInterceptUI();
@@ -247,7 +254,10 @@ public class HelloApplication extends Application {
         } else {
             int rand = engine.random.nextInt(3);
             if (rand == 0) {
-                engine.isFirewallFight = true; engine.firewallProgress = 0.5; ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
+                // 套用天賦2：弱化防火牆
+                engine.isFirewallFight = true;
+                engine.firewallProgress = 0.5 + (p.talentWeakFW * 0.05);
+                ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
             } else if (rand == 1) {
                 engine.isInterceptFight = true; engine.sequenceIndex = 0;
                 int len = (int)(4 + (p.currentLevel * p.routeDiffMult / 2));
@@ -263,7 +273,9 @@ public class HelloApplication extends Application {
                 ui.decryptTargetDisplay.setText(engine.decryptTarget);
                 ui.updateDecryptUI();
                 long now = System.nanoTime();
-                engine.decryptFlashEndTime = now + 500_000_000L;
+
+                // 套用天賦3：加長閃現記憶時間
+                engine.decryptFlashEndTime = now + 500_000_000L + (p.talentFlashTime * 150_000_000L);
                 engine.decryptDeadline = now + (long)(5.0 * 1_000_000_000L);
                 ui.decryptLayer.setVisible(true);
             }
@@ -304,7 +316,10 @@ public class HelloApplication extends Application {
         p.darkCoins += earned;
         p.currentLevel++;
         engine.progress = 0.0; engine.currentSegment = 0;
-        if (p.currentLevel > p.highScore) p.highScore = p.currentLevel;
+        if (p.currentLevel > p.highScore) {
+            p.highScore = p.currentLevel;
+            p.saveData(); // 超越最高紀錄立刻永久存檔
+        }
 
         ui.uiBorder.setTextFill(Color.rgb(0, 255, 204, 0.5));
         ui.gameLayer.setVisible(false);
@@ -315,12 +330,49 @@ public class HelloApplication extends Application {
     public void triggerGameOver(String reason) {
         engine.currentState = HackEngine.GameState.GAMEOVER;
         ui.shakeScreen();
+
+        // === 局外永久結算 (將當局剩餘 DarkCoins 的 10% 存入 LegacyCoins) ===
+        int earnedLegacy = p.darkCoins / 10;
+        p.legacyCoins += earnedLegacy;
+        p.saveData(); // 死亡時必定自動存檔
+        ui.updateTalentUI(); // 同步主選單數據
+
         ui.gameOverReasonLabel.setText(reason);
-        ui.gameOverStatsLabel.setText("REACHED LAYER: " + p.currentLevel);
+        ui.gameOverStatsLabel.setText("REACHED LAYER: " + p.currentLevel + "\nPERMANENT LEGACY COINS EARNED: +" + earnedLegacy);
         ui.gameOverLayer.setVisible(true);
         ui.firewallLayer.setVisible(false);
         ui.interceptLayer.setVisible(false);
         ui.decryptLayer.setVisible(false);
+    }
+
+    // 新增：處理天賦購買邏輯
+    public void upgradeTalent(int id, int cost) {
+        if (id == 1 && p.talentStartEMP < 3 && p.buyLegacy(cost)) {
+            p.talentStartEMP++;
+        } else if (id == 2 && p.talentWeakFW < 5 && p.buyLegacy(cost)) {
+            p.talentWeakFW++;
+        } else if (id == 3 && p.talentFlashTime < 3 && p.buyLegacy(cost)) {
+            p.talentFlashTime++;
+        } else {
+            playErrorSound(); // 錢不夠或滿級就嗶嗶叫
+            return;
+        }
+        p.saveData();
+        ui.updateTalentUI();
+    }
+
+    // 新增：天賦選單切換
+    public void openTalentTree() {
+        engine.currentState = HackEngine.GameState.TALENT_TREE;
+        ui.menuLayer.setVisible(false);
+        ui.updateTalentUI();
+        ui.talentLayer.setVisible(true);
+    }
+
+    public void closeTalentTree() {
+        engine.currentState = HackEngine.GameState.MAIN_MENU;
+        ui.talentLayer.setVisible(false);
+        ui.menuLayer.setVisible(true);
     }
 
     public void startIntroSequence() {
@@ -352,7 +404,6 @@ public class HelloApplication extends Application {
     public void returnToMenu() {
         ui.pauseLayer.setVisible(false); ui.gameLayer.setVisible(false); ui.shopLayer.setVisible(false);
         ui.gameOverLayer.setVisible(false); ui.routeLayer.setVisible(false); ui.menuLayer.setVisible(true);
-        ui.highScoreDisplay.setText("HIGHEST LAYER: " + p.highScore);
         resetGame(); engine.currentState = HackEngine.GameState.MAIN_MENU;
     }
 
