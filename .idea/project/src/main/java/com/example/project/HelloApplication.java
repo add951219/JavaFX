@@ -30,7 +30,7 @@ public class HelloApplication extends Application {
     private int selectedLevel = 0;
     private AudioClip errorSound1, errorSound2, loseSound;
 
-    // 新增 BGM 播放器
+    // BGM 播放器
     private MediaPlayer bgmPlayer;
 
     private ExecutorService audioPool;
@@ -88,7 +88,6 @@ public class HelloApplication extends Application {
         }
     }
 
-    // 讓 UIManager 可以調整音量
     public void setBgmVolume(double vol) {
         if (bgmPlayer != null) {
             bgmPlayer.setVolume(vol);
@@ -133,7 +132,6 @@ public class HelloApplication extends Application {
             if (!ui.root.isFocused()) ui.root.requestFocus();
             if (engine.currentState == HackEngine.GameState.PLAYING) {
 
-                // --- APM 總按鍵追蹤 ---
                 boolean isActionKey = e.getCode().isLetterKey() || e.getCode().isDigitKey() || e.getCode() == KeyCode.SPACE;
                 if (isActionKey) {
                     engine.runTotalKeystrokes++;
@@ -141,7 +139,14 @@ public class HelloApplication extends Application {
 
                 if (e.getCode() == KeyCode.DIGIT1 || e.getCode() == KeyCode.NUMPAD1) {
                     if (engine.activeGlitch == HackEngine.GlitchType.CORE_OVERLOAD) ui.typeWriterUpdate("⚠ BLOCKED: CORE OVERLOAD ACTIVE ⚠");
-                    else if (engine.useEMP(p)) { ui.typeWriterUpdate(">>> EMP DEPLOYED!"); ui.updateShopUI(); ui.updateFirewallUI(); }
+                    else if (engine.useEMP(p)) {
+                        ui.typeWriterUpdate(">>> EMP DEPLOYED!");
+                        ui.updateShopUI();
+                        ui.updateFirewallUI();
+                        // 替換為平滑的脈衝與光柵掃描
+                        ui.playPulseEffect();
+                        ui.playSweepTransition(Color.CYAN);
+                    }
                 }
                 if (e.getCode() == KeyCode.DIGIT2 || e.getCode() == KeyCode.NUMPAD2) {
                     if (engine.useSlow(p)) {
@@ -150,18 +155,21 @@ public class HelloApplication extends Application {
                     }
                 }
                 if (e.getCode() == KeyCode.SPACE && engine.isFirewallFight) {
-                    engine.runCorrectKeystrokes++; // 打破防火牆算正確敲擊
+                    engine.runCorrectKeystrokes++;
                     engine.firewallProgress += 0.05 + (p.upgClick * 0.015);
                     ui.updateFirewallUI();
                     ui.playFirewallSpacePopEffect();
                     ui.playComboHitEffect(engine.comboMultiplier);
+
+                    // 替換為極淡的敲擊視覺回饋，不晃動畫面
+                    ui.playFlashEffect(Color.rgb(0, 255, 204, 0.15), 50);
                 }
                 if (engine.isInterceptFight) {
                     String input = e.getText().toUpperCase();
                     if (!input.isEmpty() && engine.sequenceIndex < engine.targetSequence.length()) {
                         if (input.equals(engine.targetSequence.substring(engine.sequenceIndex, engine.sequenceIndex + 1))) {
                             engine.sequenceIndex++;
-                            engine.runCorrectKeystrokes++; // 攔截成功算正確敲擊
+                            engine.runCorrectKeystrokes++;
                             playSuccessSound();
                             ui.updateInterceptUI();
                             ui.playComboHitEffect(engine.comboMultiplier);
@@ -183,7 +191,7 @@ public class HelloApplication extends Application {
                     else if (code.isKeypadKey() && code.toString().startsWith("NUMPAD")) inputChar = code.toString().replace("NUMPAD", "");
                     if (!inputChar.isEmpty()) {
                         engine.decryptInput += inputChar;
-                        engine.runCorrectKeystrokes++; // 輸入密碼時暫時先算正確
+                        engine.runCorrectKeystrokes++;
                         playSuccessSound();
                         ui.updateDecryptUI();
                         ui.playComboHitEffect(engine.comboMultiplier);
@@ -193,7 +201,7 @@ public class HelloApplication extends Application {
                                 ui.typeWriterUpdate(">>> ENCRYPTION BROKEN."); engine.currentSegment++;
                             } else {
                                 ui.triggerErrorEffect(ui.errorImage2, 2);
-                                engine.runCorrectKeystrokes -= engine.decryptInput.length(); // 密碼錯誤，將剛才加的正確次數扣除
+                                engine.runCorrectKeystrokes -= engine.decryptInput.length();
                                 engine.decryptInput = "";
                                 engine.decryptDeadline -= 1_000_000_000L;
                                 ui.updateDecryptUI();
@@ -230,7 +238,7 @@ public class HelloApplication extends Application {
             }
             if (engine.isHacking && !engine.isFirewallFight && !engine.isInterceptFight && !engine.isDecryptFight) {
                 engine.comboFrames++; engine.comboMultiplier = Math.min(3.0, 1.0 + (engine.comboFrames / 180.0));
-                engine.updateMaxCombo(); // 更新最大 Combo
+                engine.updateMaxCombo();
                 if (engine.comboMultiplier >= 2.0 && engine.random.nextInt(4) == 0) ui.playComboHitEffect(engine.comboMultiplier);
             } else { engine.comboFrames = 0; engine.comboMultiplier = 1.0; }
             ui.updateComboDisplay(engine.comboMultiplier);
@@ -243,7 +251,14 @@ public class HelloApplication extends Application {
                 engine.firewallProgress -= drainRate;
                 ui.updateFirewallUI();
                 if (engine.firewallProgress <= 0) triggerGameOver(">>> BLOCKED <<<");
-                else if (engine.firewallProgress >= 1.0) { engine.isFirewallFight = false; ui.firewallLayer.setVisible(false); ui.typeWriterUpdate(">>> FIREWALL SHATTERED."); if(!engine.isInterceptFight) engine.currentSegment++; }
+                else if (engine.firewallProgress >= 1.0) {
+                    engine.isFirewallFight = false; ui.firewallLayer.setVisible(false); ui.typeWriterUpdate(">>> FIREWALL SHATTERED.");
+                    if(!engine.isInterceptFight) engine.currentSegment++;
+
+                    // 替換為平滑脈衝與光柵特效
+                    ui.playPulseEffect();
+                    ui.playSweepTransition(Color.CYAN);
+                }
             }
             if (engine.isInterceptFight) {
                 double timeLeft = (engine.interceptDeadline - now) / 1_000_000_000.0;
@@ -277,8 +292,13 @@ public class HelloApplication extends Application {
         timeline.setCycleCount(Timeline.INDEFINITE); timeline.play();
     }
     public void checkBossLevel() { engine.rollGlitch(p.currentLevel); ui.updateGlitchDisplay(); if (engine.isBossLevel(p.currentLevel)) { engine.totalSegments = 8; ui.uiBorder.setTextFill(Color.RED); ui.statusLabel.setTextFill(Color.RED); ui.typeWriterUpdate("⚠ WARNING: CORE OVERRIDE DETECTED. PREPARE FOR ASSAULT ⚠"); } else { engine.totalSegments = 4; ui.uiBorder.setTextFill(Color.rgb(0, 255, 204, 0.5)); ui.statusLabel.setTextFill(Color.CYAN); } }
+
     public void triggerCheckpointEvent() {
-        ui.shakeScreen(); long MathNow = System.nanoTime();
+        // 替換為平滑光柵特效與脈衝
+        ui.playSweepTransition(Color.WHITE);
+        ui.playPulseEffect();
+
+        long MathNow = System.nanoTime();
         if (engine.isBossLevel(p.currentLevel)) {
             engine.isFirewallFight = true; engine.firewallProgress = 0.5 + (p.talentWeakFW * 0.05); ui.firewallLayer.setVisible(true); ui.updateFirewallUI();
             engine.isInterceptFight = true; engine.sequenceIndex = 0;
@@ -300,15 +320,37 @@ public class HelloApplication extends Application {
             else { engine.startDecryptEvent(p, MathNow); ui.decryptTargetDisplay.setText(engine.decryptTarget); ui.updateDecryptUI(); ui.decryptLayer.setVisible(true); }
         }
     }
+
     public void handleHoneypotTrap() { }
-    public void handleEventFailure() { engine.isInterceptFight = false; engine.isDecryptFight = false; ui.interceptLayer.setVisible(false); ui.decryptLayer.setVisible(false); engine.progress = engine.currentSegment * (1.0 / engine.totalSegments); ui.shakeScreen(); ui.typeWriterUpdate(">>> PACKET LOST! CRYPTO-BARRIER COLLAPSED."); }
+
+    public void handleEventFailure() {
+        engine.isInterceptFight = false; engine.isDecryptFight = false; ui.interceptLayer.setVisible(false); ui.decryptLayer.setVisible(false); engine.progress = engine.currentSegment * (1.0 / engine.totalSegments);
+
+        // 保留輕微震動與低透明度紅光
+        ui.shakeScreen();
+        ui.playFlashEffect(Color.rgb(255, 0, 0, 0.3), 300);
+        ui.typeWriterUpdate(">>> PACKET LOST! CRYPTO-BARRIER COLLAPSED.");
+    }
+
     public void playLevelClearExplosion() { engine.currentState = HackEngine.GameState.PAUSED; engine.isHacking = false; Timeline explosion = new Timeline(new KeyFrame(Duration.millis(50), e -> { ui.statusLabel.setText(engine.generateRandomCode().substring(0, 40)); ui.uiBorder.setTextFill(Color.color(engine.random.nextDouble(), engine.random.nextDouble(), engine.random.nextDouble())); })); explosion.setCycleCount(15); explosion.setOnFinished(e -> triggerLevelClear()); explosion.play(); }
-    public void triggerLevelClear() { int baseReward = engine.isBossLevel(p.currentLevel) ? 500 : 100; int earned = (int)((p.currentLevel * baseReward) * engine.comboMultiplier * p.routeRewardMult); p.darkCoins += earned; p.currentLevel++; engine.progress = 0.0; engine.currentSegment = 0; if (p.currentLevel > p.highScore) p.highScore = p.currentLevel; ui.uiBorder.setTextFill(Color.rgb(0, 255, 204, 0.5)); ui.gameLayer.setVisible(false); engine.currentState = HackEngine.GameState.ROUTE_SELECT; ui.routeLayer.setVisible(true); }
+
+    public void triggerLevelClear() {
+        // 替換為平滑光柵特效與脈衝
+        ui.playPulseEffect();
+        ui.playSweepTransition(Color.LIME);
+
+        int baseReward = engine.isBossLevel(p.currentLevel) ? 500 : 100; int earned = (int)((p.currentLevel * baseReward) * engine.comboMultiplier * p.routeRewardMult); p.darkCoins += earned; p.currentLevel++; engine.progress = 0.0; engine.currentSegment = 0; if (p.currentLevel > p.highScore) p.highScore = p.currentLevel; ui.uiBorder.setTextFill(Color.rgb(0, 255, 204, 0.5)); ui.gameLayer.setVisible(false); engine.currentState = HackEngine.GameState.ROUTE_SELECT; ui.routeLayer.setVisible(true);
+    }
 
     public void triggerGameOver(String reason) {
         if (loseSound != null) { if (loseSound.isPlaying()) loseSound.stop(); loseSound.play(); }
         engine.currentState = HackEngine.GameState.GAMEOVER;
+
+        // 死亡時使用紅光光柵掃描與輕微震動
         ui.shakeScreen();
+        ui.playSweepTransition(Color.RED);
+        ui.playFlashEffect(Color.rgb(255, 0, 0, 0.4), 800);
+
         int earnedLegacy = p.darkCoins / 10;
         p.legacyCoins += earnedLegacy;
 
@@ -324,7 +366,6 @@ public class HelloApplication extends Application {
 
         ui.updateTalentUI();
 
-        // --- 結算稱號系統判定 ---
         String title = "SCRIPT KIDDIE (腳本小子)";
         int apm = engine.getRunAPM();
         double acc = engine.getRunAccuracy();
@@ -349,11 +390,16 @@ public class HelloApplication extends Application {
             ui.talentCostLabel.setText("錯誤：[ Legacy Coins 不足 ]"); ui.talentCostLabel.setTextFill(Color.RED);
         }
     }
-    public void openTalentTree() { engine.currentState = HackEngine.GameState.TALENT_TREE; ui.menuLayer.setVisible(false); ui.updateTalentUI(); ui.talentLayer.setVisible(true); }
-    public void closeTalentTree() { engine.currentState = HackEngine.GameState.MAIN_MENU; ui.talentLayer.setVisible(false); ui.menuLayer.setVisible(true); }
+
+    // 將選單切換全部替換為光柵過場
+    public void openTalentTree() { ui.playSweepTransition(Color.web("#FF007F")); engine.currentState = HackEngine.GameState.TALENT_TREE; ui.menuLayer.setVisible(false); ui.updateTalentUI(); ui.talentLayer.setVisible(true); }
+    public void closeTalentTree() { ui.playSweepTransition(Color.CYAN); engine.currentState = HackEngine.GameState.MAIN_MENU; ui.talentLayer.setVisible(false); ui.menuLayer.setVisible(true); }
+
     public void startIntroSequence() { engine.currentState = HackEngine.GameState.INTRO; ui.menuLayer.setVisible(false); ui.introLayer.setVisible(true); Label text = (Label) ui.introLayer.getChildren().get(0); String[] lines = {"WAKING UP SYSTEM...", "ACCESS GRANTED."}; Timeline introTimeline = new Timeline(); for (int i=0; i<lines.length; i++) { final int index = i; introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(0.5 * (i+1)), e -> text.setText(lines[index]))); } introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(lines.length * 0.5 + 0.5), e -> { ui.introLayer.setVisible(false); ui.gameLayer.setVisible(true); engine.currentState = HackEngine.GameState.PLAYING; engine.startNewRun(); checkBossLevel(); })); introTimeline.play(); }
     public void resetGame() { p.reset(); engine.resetEvents(); ui.gameOverLayer.setVisible(false); ui.gameLayer.setVisible(true); engine.currentState = HackEngine.GameState.PLAYING; engine.startNewRun(); checkBossLevel(); }
-    public void returnToMenu() { ui.pauseLayer.setVisible(false); ui.gameLayer.setVisible(false); ui.shopLayer.setVisible(false); ui.gameOverLayer.setVisible(false); ui.routeLayer.setVisible(false); ui.menuLayer.setVisible(true); resetGame(); engine.currentState = HackEngine.GameState.MAIN_MENU; }
-    public void enterShop() { ui.routeLayer.setVisible(false); ui.updateShopUI(); ui.shopLayer.setVisible(true); engine.currentState = HackEngine.GameState.SHOP; }
+
+    public void returnToMenu() { ui.playSweepTransition(Color.WHITE); ui.pauseLayer.setVisible(false); ui.gameLayer.setVisible(false); ui.shopLayer.setVisible(false); ui.gameOverLayer.setVisible(false); ui.routeLayer.setVisible(false); ui.menuLayer.setVisible(true); resetGame(); engine.currentState = HackEngine.GameState.MAIN_MENU; }
+    public void enterShop() { ui.playSweepTransition(Color.LIME); ui.routeLayer.setVisible(false); ui.updateShopUI(); ui.shopLayer.setVisible(true); engine.currentState = HackEngine.GameState.SHOP; }
+
     public static void main(String[] args) { launch(); }
 }

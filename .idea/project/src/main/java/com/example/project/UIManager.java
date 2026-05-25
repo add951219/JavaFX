@@ -32,7 +32,6 @@ public class UIManager {
     public VBox descBox;
     public ImageView errorImage1, errorImage2;
 
-    // 新增：音量滑桿變數
     public Slider menuVolumeSlider, pauseVolumeSlider;
 
     private Group treeGroup;
@@ -41,14 +40,18 @@ public class UIManager {
     private List<Line> talentLines = new ArrayList<>();
     public String currentTargetText = "";
 
-    // 美術優化新增：全域視覺特效物件
+    // 美術視覺特效物件
     private DropShadow neonGlowCyan;
     private DropShadow neonGlowPink;
     private DropShadow neonGlowGreen;
 
+    // 高科技視覺疊加層
+    public Rectangle flashOverlay;
+    public Rectangle scanline;
+
     public UIManager(PlayerStats p, HackEngine engine, HelloApplication app) {
         this.p = p; this.engine = engine; this.app = app;
-        initVisualEffects(); // 初始化美術發光特效
+        initVisualEffects();
         buildVisuals();
     }
 
@@ -73,7 +76,6 @@ public class UIManager {
         root = new StackPane(); root.setStyle("-fx-background-color: #0b0c10;");
         matrixBg = new Label(); matrixBg.setTextFill(Color.rgb(0, 255, 204, 0.15)); matrixBg.setFont(Font.font("Consolas", 12)); matrixBg.setAlignment(Pos.TOP_LEFT);
 
-        // 美術優化：為背景程式碼加上輕微模糊，製造數位雨遠景的深度感
         GaussianBlur bgBlur = new GaussianBlur(1.5);
         matrixBg.setEffect(bgBlur);
 
@@ -112,7 +114,6 @@ public class UIManager {
         bootWarningLabel.setTextFill(Color.rgb(255, 50, 50, 0.6));
         bootWarningLabel.setFont(Font.font("Consolas", 11));
 
-        // 新增：首頁的音量控制條
         Label menuVolLabel = new Label("SYS_VOL:");
         menuVolLabel.setTextFill(Color.CYAN);
         menuVolLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
@@ -122,7 +123,6 @@ public class UIManager {
         HBox menuVolBox = new HBox(10, menuVolLabel, menuVolumeSlider);
         menuVolBox.setAlignment(Pos.CENTER);
 
-        // 將 menuVolBox 加入 menuBox
         menuBox.getChildren().addAll(versionLabel, title, highScoreDisplay, systemStatusLabel, btnStart, btnOpenTalents, btnExit, bootWarningLabel, menuVolBox);
         menuLayer.getChildren().add(menuBox);
 
@@ -155,7 +155,6 @@ public class UIManager {
         pauseLayer = new StackPane(); pauseLayer.setStyle("-fx-background-color: rgba(0,0,0,0.85);");
         VBox pauseBox = new VBox(20); pauseBox.setAlignment(Pos.CENTER); Label pauseTitle = new Label("SYSTEM PAUSED"); pauseTitle.setTextFill(Color.WHITE); pauseTitle.setFont(Font.font("Consolas", 40));
 
-        // 新增：暫停選單的音量控制條
         Label pauseVolLabel = new Label("SYS_VOL:");
         pauseVolLabel.setTextFill(Color.CYAN);
         pauseVolLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
@@ -165,10 +164,7 @@ public class UIManager {
         HBox pauseVolBox = new HBox(10, pauseVolLabel, pauseVolumeSlider);
         pauseVolBox.setAlignment(Pos.CENTER);
 
-        // 雙向綁定兩個滑桿的值
         menuVolumeSlider.valueProperty().bindBidirectional(pauseVolumeSlider.valueProperty());
-
-        // 監聽滑桿變動並更新 BGM 音量
         menuVolumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
             app.setBgmVolume(newVal.doubleValue());
         });
@@ -176,7 +172,6 @@ public class UIManager {
         Button btnResume = createStyledButton("RESUME"); btnResume.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; pauseLayer.setVisible(false); });
         Button btnMenuPause = createStyledButton("ABORT TO MENU"); btnMenuPause.setOnAction(e -> app.returnToMenu());
 
-        // 將 pauseVolBox 加入 pauseBox
         pauseBox.getChildren().addAll(pauseTitle, pauseVolBox, btnResume, btnMenuPause);
         pauseLayer.getChildren().add(pauseBox); pauseLayer.setVisible(false);
 
@@ -184,7 +179,6 @@ public class UIManager {
         VBox overBox = new VBox(20); overBox.setAlignment(Pos.CENTER);
         gameOverReasonLabel = new Label(""); gameOverReasonLabel.setTextFill(Color.RED); gameOverReasonLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 45));
 
-        // 變更：為 Game Over 結算面板調整字型與置中對齊
         gameOverStatsLabel = new Label(""); gameOverStatsLabel.setTextFill(Color.WHITE); gameOverStatsLabel.setFont(Font.font("Consolas", 18));
         gameOverStatsLabel.setTextAlignment(TextAlignment.CENTER);
 
@@ -194,10 +188,67 @@ public class UIManager {
 
         errorImage1 = loadEmergeErrorImage("error1.jpg"); errorImage2 = loadEmergeErrorImage("error2.jpg");
 
-        root.getChildren().addAll(matrixBg, gameLayer, crtOverlay, firewallLayer, interceptLayer, decryptLayer, routeLayer, shopLayer, introLayer, gameOverLayer, talentLayer, pauseLayer, menuLayer, errorImage1, errorImage2);
+        // 建立高科技全息視覺圖層 (置於最上層)
+        flashOverlay = new Rectangle(800, 600, Color.TRANSPARENT);
+        flashOverlay.setMouseTransparent(true);
+
+        scanline = new Rectangle(800, 6, Color.CYAN);
+        scanline.setVisible(false);
+        scanline.setMouseTransparent(true);
+
+        root.getChildren().addAll(matrixBg, gameLayer, crtOverlay, firewallLayer, interceptLayer, decryptLayer, routeLayer, shopLayer, introLayer, gameOverLayer, talentLayer, pauseLayer, menuLayer, errorImage1, errorImage2, flashOverlay, scanline);
     }
 
-    // 美術優化新增：為自訂按鈕加上滑鼠懸停閃爍與縮放動態回饋
+    // === 高科技過場優化：流暢的光柵掃描線過場 ===
+    public void playSweepTransition(Color color) {
+        scanline.setFill(color);
+        if(color.equals(Color.CYAN)) scanline.setEffect(neonGlowCyan);
+        else if (color.equals(Color.web("#FF007F"))) scanline.setEffect(neonGlowPink);
+        else scanline.setEffect(neonGlowGreen);
+
+        scanline.setVisible(true);
+        scanline.setTranslateY(-300);
+
+        TranslateTransition sweep = new TranslateTransition(Duration.millis(350), scanline);
+        sweep.setToY(300);
+
+        FadeTransition ft = new FadeTransition(Duration.millis(350), scanline);
+        ft.setFromValue(1.0);
+        ft.setToValue(0.0);
+
+        ParallelTransition pt = new ParallelTransition(sweep, ft);
+        pt.setOnFinished(e -> scanline.setVisible(false));
+        pt.play();
+    }
+
+    // === 高科技打擊感優化：平滑的介面脈衝放大回彈 ===
+    public void playPulseEffect() {
+        ScaleTransition st = new ScaleTransition(Duration.millis(120), root);
+        st.setFromX(1.0); st.setFromY(1.0);
+        st.setToX(1.015); st.setToY(1.015);
+        st.setAutoReverse(true);
+        st.setCycleCount(2);
+        st.play();
+    }
+
+    // 優化：還原極輕微的傳統物理震動，僅在系統報錯或失誤時使用，不再劇烈破壞畫面
+    public void shakeScreen() {
+        TranslateTransition tt = new TranslateTransition(Duration.millis(40), root);
+        tt.setFromX(0f); tt.setByX(5f);
+        tt.setCycleCount(4);
+        tt.setAutoReverse(true);
+        tt.playFromStart();
+    }
+
+    // 優化：透明度極低的柔和環境光疊加，保護眼睛
+    public void playFlashEffect(Color c, double durationMillis) {
+        flashOverlay.setFill(c);
+        FadeTransition ft = new FadeTransition(Duration.millis(durationMillis), flashOverlay);
+        ft.setFromValue(0.25);
+        ft.setToValue(0.0);
+        ft.play();
+    }
+
     private void setupNeonButtonAnimation(Button btn, String primaryColor, String glowBgColor) {
         btn.setStyle("-fx-background-color: black; -fx-text-fill: " + primaryColor + "; -fx-border-color: " + primaryColor + "; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-radius: 5; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;");
 
@@ -238,6 +289,7 @@ public class UIManager {
 
         app.playErrorSound(type);
         shakeScreen();
+        playFlashEffect(Color.rgb(255, 0, 0, 0.3), 300);
 
         FadeTransition fadeIn = new FadeTransition(Duration.millis(150), errorImg);
         fadeIn.setFromValue(0.0);
@@ -447,7 +499,6 @@ public class UIManager {
         st.play();
     }
 
-    // 新增：顯示詳細的 Game Over 結算數據面板
     public void showGameOverStats(String reason, int level, int legacy, double maxCombo, int apm, double accuracy, String title) {
         gameOverReasonLabel.setText(reason);
         String stats = String.format(
@@ -483,7 +534,6 @@ public class UIManager {
 
     public void updateASCIIProgress() { StringBuilder sb = new StringBuilder("["); for (int i=1; i<=20; i++) { if (i <= (engine.progress*20)) sb.append("|"); else sb.append("."); } sb.append("] ").append((int)(engine.progress*100)).append("%"); progressDisplay.setText("LEVEL " + p.currentLevel + " " + sb.toString()); if (!engine.isHacking && !engine.isFirewallFight) statusLabel.setText(">>> WARNING: LOSING PROGRESS... [RELEASED]"); else if (engine.isHacking) statusLabel.setText(">>> INJECTING... BREACHING LAYER " + (engine.currentSegment+1)); }
     public void typeWriterUpdate(String t) { this.currentTargetText = t; statusLabel.setText(t); }
-    public void shakeScreen() { TranslateTransition tt = new TranslateTransition(Duration.millis(50), root); tt.setFromX(0f); tt.setByX(10f); tt.setCycleCount(6); tt.setAutoReverse(true); tt.playFromStart(); }
 
     private Button createStyledButton(String text) { Button btn = new Button(text); setupNeonButtonAnimation(btn, "#00FFCC", "rgba(0, 255, 204, 0.15)"); return btn; }
     private Button createShopButton(String name, int cost) { Button btn = new Button(name); setupNeonButtonAnimation(btn, "#00FF00", "rgba(0, 255, 0, 0.12)"); return btn; }
