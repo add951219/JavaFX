@@ -18,6 +18,7 @@ public class PlayerStats {
     public int slowCharges = 0;
 
     public int highScore = 0;
+    public double highestCombo = 1.0; // 新增：生涯最高 Combo 紀錄
 
     // 路線選擇倍率
     public double routeRewardMult = 1.0;
@@ -69,6 +70,7 @@ public class PlayerStats {
     // 新增：從硬碟讀取數據
     public void loadData() {
         highScore = prefs.getInt("highScore", 0);
+        highestCombo = prefs.getDouble("highestCombo", 1.0);
         legacyCoins = prefs.getInt("legacyCoins", 0);
         talentStartEMP = prefs.getInt("talentStartEMP", 0);
         talentWeakFW = prefs.getInt("talentWeakFW", 0);
@@ -78,6 +80,7 @@ public class PlayerStats {
     // 新增：將數據寫入硬碟
     public void saveData() {
         prefs.putInt("highScore", highScore);
+        prefs.putDouble("highestCombo", highestCombo);
         prefs.putInt("legacyCoins", legacyCoins);
         prefs.putInt("talentStartEMP", talentStartEMP);
         prefs.putInt("talentWeakFW", talentWeakFW);

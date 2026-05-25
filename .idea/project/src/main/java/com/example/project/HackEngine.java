@@ -31,9 +31,44 @@ public class HackEngine {
 
     public final Random random = new Random();
 
+    // === 結算系統追蹤變數 ===
+    public double runMaxCombo = 1.0;
+    public int runTotalKeystrokes = 0;
+    public int runCorrectKeystrokes = 0;
+    public long runStartTime = 0;
+
     public void resetEvents() {
         isHacking = false; progress = 0.0; currentSegment = 0; comboFrames = 0; comboMultiplier = 1.0;
         isFirewallFight = false; firewallProgress = 0.5; isInterceptFight = false; isDecryptFight = false;
+    }
+
+    // 新增：開始新的一局遊戲時重置結算數據
+    public void startNewRun() {
+        runMaxCombo = 1.0;
+        runTotalKeystrokes = 0;
+        runCorrectKeystrokes = 0;
+        runStartTime = System.nanoTime();
+    }
+
+    // 新增：更新當局最大 Combo
+    public void updateMaxCombo() {
+        if (comboMultiplier > runMaxCombo) {
+            runMaxCombo = comboMultiplier;
+        }
+    }
+
+    // 新增：計算 APM (Actions Per Minute)
+    public int getRunAPM() {
+        if (runStartTime == 0) return 0;
+        double minutes = (System.nanoTime() - runStartTime) / 60_000_000_000.0;
+        if (minutes <= 0.01) return 0;
+        return (int) (runTotalKeystrokes / minutes);
+    }
+
+    // 新增：計算整體準確率
+    public double getRunAccuracy() {
+        if (runTotalKeystrokes == 0) return 100.0; // 沒按過鍵算 100%
+        return ((double) runCorrectKeystrokes / runTotalKeystrokes) * 100.0;
     }
 
     public boolean isBossLevel(int level) { return level % 5 == 0; }
