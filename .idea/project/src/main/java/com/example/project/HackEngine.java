@@ -17,6 +17,7 @@ public class HackEngine {
 
     public boolean isFirewallFight = false;
     public double firewallProgress = 0.5;
+
     public boolean isInterceptFight = false;
     public String targetSequence = "";
     public int sequenceIndex = 0;
@@ -29,6 +30,12 @@ public class HackEngine {
     public long decryptDeadline = 0;
     public boolean isDecryptFlashed = false;
 
+    // === 新增：打蟲子關卡變數 ===
+    public boolean isBugCatchFight = false;
+    public int bugsCaught = 0;
+    public long bugCatchDeadline = 0;
+    public long lastBugSpawnTime = 0;
+
     public final Random random = new Random();
 
     // === 結算系統追蹤變數 ===
@@ -40,9 +47,9 @@ public class HackEngine {
     public void resetEvents() {
         isHacking = false; progress = 0.0; currentSegment = 0; comboFrames = 0; comboMultiplier = 1.0;
         isFirewallFight = false; firewallProgress = 0.5; isInterceptFight = false; isDecryptFight = false;
+        isBugCatchFight = false; // 新增重置
     }
 
-    // 新增：開始新的一局遊戲時重置結算數據
     public void startNewRun() {
         runMaxCombo = 1.0;
         runTotalKeystrokes = 0;
@@ -50,14 +57,12 @@ public class HackEngine {
         runStartTime = System.nanoTime();
     }
 
-    // 新增：更新當局最大 Combo
     public void updateMaxCombo() {
         if (comboMultiplier > runMaxCombo) {
             runMaxCombo = comboMultiplier;
         }
     }
 
-    // 新增：計算 APM (Actions Per Minute)
     public int getRunAPM() {
         if (runStartTime == 0) return 0;
         double minutes = (System.nanoTime() - runStartTime) / 60_000_000_000.0;
@@ -65,9 +70,8 @@ public class HackEngine {
         return (int) (runTotalKeystrokes / minutes);
     }
 
-    // 新增：計算整體準確率
     public double getRunAccuracy() {
-        if (runTotalKeystrokes == 0) return 100.0; // 沒按過鍵算 100%
+        if (runTotalKeystrokes == 0) return 100.0;
         return ((double) runCorrectKeystrokes / runTotalKeystrokes) * 100.0;
     }
 
@@ -100,14 +104,29 @@ public class HackEngine {
         decryptDeadline = now + (long)(Math.max(4.0, 7.5 - p.currentLevel * 0.12) * 1_000_000_000L * lagModifier);
     }
 
+    // === 新增：啟動打蟲子關卡 ===
+    public void startBugCatchEvent(PlayerStats p, long now) {
+        isBugCatchFight = true;
+        bugsCaught = 0;
+        double lagModifier = (activeGlitch == GlitchType.NETWORK_LAG) ? 0.8 : 1.0;
+        // 限時約為 12~15 秒，隨難度遞減
+        bugCatchDeadline = now + (long)(Math.max(8.0, 15.0 - p.currentLevel * 0.2) * 1_000_000_000L * lagModifier);
+        lastBugSpawnTime = now;
+    }
+
     public boolean useEMP(PlayerStats p) {
         if (p.empCharges > 0 && isFirewallFight) { p.empCharges--; firewallProgress += 0.4; return true; }
         return false;
     }
 
     public boolean useSlow(PlayerStats p) {
-        if (p.slowCharges > 0 && (isInterceptFight || isDecryptFight)) {
-            p.slowCharges--; interceptDeadline += 2_500_000_000L; decryptDeadline += 2_500_000_000L; return true;
+        // 新增：緩速技能也能延長打蟲子的時間
+        if (p.slowCharges > 0 && (isInterceptFight || isDecryptFight || isBugCatchFight)) {
+            p.slowCharges--;
+            interceptDeadline += 2_500_000_000L;
+            decryptDeadline += 2_500_000_000L;
+            bugCatchDeadline += 2_500_000_000L;
+            return true;
         }
         return false;
     }
