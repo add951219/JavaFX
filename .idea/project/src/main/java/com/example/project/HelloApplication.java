@@ -29,6 +29,7 @@ public class HelloApplication extends Application {
     private int selectedBranch = 0;
     private int selectedLevel = 0;
     private AudioClip errorSound1, errorSound2, loseSound;
+    private AudioClip gunshotSound, pictureHitSound; // 新增：打靶槍聲與按錯音效
 
     private MediaPlayer bgmPlayer;
     private ExecutorService audioPool;
@@ -69,6 +70,12 @@ public class HelloApplication extends Application {
             loseSound = new AudioClip(getClass().getResource("/lose.mp3").toExternalForm());
         } catch (Exception e) { System.out.println("音效載入失敗"); }
 
+        // === 新增：載入自訂的打靶音效 ===
+        try {
+            gunshotSound = new AudioClip(getClass().getResource("/gun.mp3").toExternalForm());
+            pictureHitSound = new AudioClip(getClass().getResource("/pic_hit.mp3").toExternalForm());
+        } catch (Exception e) { System.out.println("自訂打靶音效載入失敗，請確認 resources 資料夾下有 gun.mp3 與 pic_hit.mp3"); }
+
         try {
             Media bgmMedia = new Media(getClass().getResource("/bgm.mp3").toExternalForm());
             bgmPlayer = new MediaPlayer(bgmMedia); bgmPlayer.setCycleCount(MediaPlayer.INDEFINITE); bgmPlayer.setVolume(0.5); bgmPlayer.play();
@@ -89,6 +96,21 @@ public class HelloApplication extends Application {
                 SourceDataLine sdl = AudioSystem.getSourceDataLine(cachedAudioFormat); sdl.open(cachedAudioFormat); sdl.start(); sdl.write(cachedSuccessBuf, 0, cachedSuccessBuf.length); sdl.drain(); sdl.close();
             } catch (Exception e) {}
         });
+    }
+
+    // === 新增：播放專屬音效的方法 ===
+    public void playGunshotSound() {
+        if (gunshotSound != null) {
+            if (gunshotSound.isPlaying()) gunshotSound.stop();
+            gunshotSound.play();
+        }
+    }
+
+    public void playPictureHitSound() {
+        if (pictureHitSound != null) {
+            if (pictureHitSound.isPlaying()) pictureHitSound.stop();
+            pictureHitSound.play();
+        }
     }
 
     private void setupInputHandlers(Scene scene) {
@@ -114,7 +136,22 @@ public class HelloApplication extends Application {
                     if (engine.useSlow(p)) { ui.typeWriterUpdate(">>> TIME DILATION ACTIVE! COOLDOWN EXTENDED."); ui.updateShopUI(); }
                 }
                 if (e.getCode() == KeyCode.SPACE && engine.isFirewallFight) {
-                    engine.runCorrectKeystrokes++; engine.firewallProgress += 0.05 + (p.upgClick * 0.015); ui.updateFirewallUI(); ui.playFirewallSpacePopEffect(); ui.playComboHitEffect(engine.comboMultiplier); ui.playFlashEffect(Color.rgb(0, 255, 204, 0.15), 50);
+                    // === 修改：導入過熱機制，防止玩家依賴高屬性無腦連點 ===
+                    if (engine.isOverheated) {
+                        playErrorSound(1); // 鎖定狀態下按空白鍵會發出警告音
+                    } else {
+                        engine.runCorrectKeystrokes++;
+                        engine.firewallProgress += 0.05 + (p.upgClick * 0.015);
+                        engine.coreHeat += 0.12; // 每次點擊增加熱量
+
+                        if (engine.coreHeat >= 1.0) {
+                            engine.isOverheated = true;
+                            engine.overheatEndTime = System.nanoTime() + 2_000_000_000L; // 鎖定 2 秒
+                            playErrorSound(1);
+                            ui.shakeScreen();
+                        }
+                        ui.updateFirewallUI(); ui.playFirewallSpacePopEffect(); ui.playComboHitEffect(engine.comboMultiplier); ui.playFlashEffect(Color.rgb(0, 255, 204, 0.15), 50);
+                    }
                 }
                 if (engine.isInterceptFight) {
                     String input = e.getText().toUpperCase();
@@ -153,11 +190,22 @@ public class HelloApplication extends Application {
             } else { engine.comboFrames = 0; engine.comboMultiplier = 1.0; }
             ui.updateComboDisplay(engine.comboMultiplier);
 
+            // === 修改：防火牆過熱自然冷卻機制 ===
             if (engine.isFirewallFight) {
+                if (engine.isOverheated) {
+                    if (now > engine.overheatEndTime) {
+                        engine.isOverheated = false;
+                        engine.coreHeat = 0.0;
+                    }
+                } else {
+                    engine.coreHeat = Math.max(0, engine.coreHeat - 0.025); // 隨時間自然降溫
+                }
+
                 double drainRate = (0.003 + (p.currentLevel * p.routeDiffMult * 0.0008)); if (engine.isBossLevel(p.currentLevel)) drainRate *= 0.35; engine.firewallProgress -= drainRate; ui.updateFirewallUI();
                 if (engine.firewallProgress <= 0) triggerGameOver(">>> BLOCKED <<<");
                 else if (engine.firewallProgress >= 1.0) { engine.isFirewallFight = false; ui.firewallLayer.setVisible(false); ui.typeWriterUpdate(">>> FIREWALL SHATTERED."); if(!engine.isInterceptFight) engine.currentSegment++; ui.playPulseEffect(); ui.playSweepTransition(Color.CYAN); }
             }
+
             if (engine.isInterceptFight) {
                 double timeLeft = (engine.interceptDeadline - now) / 1_000_000_000.0; ui.interceptTimeDisplay.setText(String.format("Time left: %.1fs", Math.max(0, timeLeft))); if (now > engine.interceptDeadline) handleEventFailure();
             }
@@ -171,8 +219,9 @@ public class HelloApplication extends Application {
                 double timeLeft = (engine.bugCatchDeadline - now) / 1_000_000_000.0;
                 ui.bugTimeLabel.setText(String.format("Time left: %.1fs", Math.max(0, timeLeft)));
 
-                // 每隔 1.1 秒刷新畫面一次蟲子佈局
-                if (now - engine.lastBugSpawnTime > 1_100_000_000L) {
+                // 難度提升：每隔一段時間刷新畫面一次蟲子佈局，刷新時間隨等級縮短 (最快 0.55 秒)
+                long refreshInterval = Math.max(550_000_000L, 1_100_000_000L - (p.currentLevel * 35_000_000L));
+                if (now - engine.lastBugSpawnTime > refreshInterval) {
                     ui.spawnBugsForEvent();
                     engine.lastBugSpawnTime = now;
                 }
@@ -180,7 +229,33 @@ public class HelloApplication extends Application {
                 if (now > engine.bugCatchDeadline) handleEventFailure();
             }
 
+            // === 修改：一般 Hack 注入時加入反追蹤機制 ===
             if (!engine.isFirewallFight && !engine.isInterceptFight && !engine.isDecryptFight && !engine.isBugCatchFight) {
+
+                // 等級 5 以後開始有反追蹤機制，防止無腦死壓滑鼠
+                if (p.currentLevel > 5 && engine.random.nextInt(350) == 0 && !engine.isBeingTraced) {
+                    engine.isBeingTraced = true;
+                    engine.traceLevel = 0.0;
+                    playErrorSound(2);
+                }
+
+                if (engine.isBeingTraced) {
+                    if (engine.isHacking) {
+                        engine.traceLevel += 0.015; // 繼續壓著滑鼠會被追蹤
+                        if (engine.traceLevel >= 1.0) {
+                            engine.progress = Math.max(0, engine.progress - 0.3); // 追蹤滿了，進度大扣
+                            engine.isBeingTraced = false;
+                            playErrorSound(1);
+                            ui.shakeScreen();
+                        }
+                    } else {
+                        engine.traceLevel -= 0.02; // 放開滑鼠則追蹤下降
+                        if (engine.traceLevel <= 0) {
+                            engine.isBeingTraced = false;
+                        }
+                    }
+                }
+
                 double checkpointSize = 1.0 / engine.totalSegments; double securedProgress = engine.currentSegment * checkpointSize; double targetCheckpoint = (engine.currentSegment + 1) * checkpointSize;
                 if (engine.isHacking) { engine.progress += 0.0022 + (p.upgSpeed * 0.0006); if (engine.progress >= targetCheckpoint) { engine.progress = targetCheckpoint; engine.isHacking = false; if (engine.currentSegment < engine.totalSegments - 1) triggerCheckpointEvent(); else playLevelClearExplosion(); } } else { engine.progress -= 0.0010 + (p.currentLevel * 0.0004); if (engine.progress < securedProgress) engine.progress = securedProgress; } ui.updateASCIIProgress();
             }
@@ -226,6 +301,7 @@ public class HelloApplication extends Application {
     public void triggerLevelClear() {
         ui.playPulseEffect(); ui.playSweepTransition(Color.LIME);
         int baseReward = engine.isBossLevel(p.currentLevel) ? 500 : 100; int earned = (int)((p.currentLevel * baseReward) * engine.comboMultiplier * p.routeRewardMult); p.darkCoins += earned; p.currentLevel++; engine.progress = 0.0; engine.currentSegment = 0; if (p.currentLevel > p.highScore) p.highScore = p.currentLevel; ui.uiBorder.setTextFill(Color.rgb(0, 255, 204, 0.5)); ui.gameLayer.setVisible(false); engine.currentState = HackEngine.GameState.ROUTE_SELECT; ui.routeLayer.setVisible(true);
+        engine.coreHeat = 0.0; engine.isOverheated = false; engine.isBeingTraced = false; engine.traceLevel = 0.0;
     }
 
     public void triggerGameOver(String reason) {

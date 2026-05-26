@@ -192,7 +192,20 @@ public class UIManager {
         SequentialTransition seq = new SequentialTransition(emerge, hold, submerge); seq.setOnFinished(e -> errorImg.setVisible(false)); seq.play();
     }
 
-    public void updateFirewallUI() { int bars = (int) Math.max(0, Math.min(20, engine.firewallProgress * 20)); int dots = 20 - bars; firewallBarDisplay.setText("[" + "|".repeat(bars) + ".".repeat(dots) + "]"); }
+    // === 修改：防火牆 UI 加入過熱警告 ===
+    public void updateFirewallUI() {
+        int bars = (int) Math.max(0, Math.min(20, engine.firewallProgress * 20));
+        int dots = 20 - bars;
+        String heatWarning = engine.isOverheated ? " [LOCKED]" : String.format(" [HEAT: %d%%]", (int)(engine.coreHeat * 100));
+        firewallBarDisplay.setText("[" + "|".repeat(bars) + ".".repeat(dots) + "]" + heatWarning);
+        if (engine.isOverheated) {
+            firewallBarDisplay.setTextFill(Color.RED);
+            firewallBarDisplay.setEffect(new DropShadow(15, Color.RED));
+        } else {
+            firewallBarDisplay.setTextFill(Color.web("#33CCFF"));
+            firewallBarDisplay.setEffect(neonGlowCyan);
+        }
+    }
 
     public void playFirewallSpacePopEffect() {
         firewallBarDisplay.setTextFill(Color.WHITE); ScaleTransition st = new ScaleTransition(Duration.millis(60), firewallBarDisplay); st.setFromX(1.06); st.setFromY(1.06); st.setToX(1.0); st.setToY(1.0); st.setOnFinished(e -> { firewallBarDisplay.setTextFill(Color.web("#33CCFF")); }); st.play();
@@ -259,9 +272,22 @@ public class UIManager {
         targetView.setLayoutY(150 + engine.random.nextDouble() * maxY);
         targetView.setStyle("-fx-cursor: hand;");
 
+        // 難度提升：隨機大小縮放 (0.5x ~ 1.0x)
+        double targetScale = 0.5 + engine.random.nextDouble() * 0.5;
+        targetView.setScaleX(targetScale);
+        targetView.setScaleY(targetScale);
+
+        // 難度提升：加上不規則移動動畫
+        TranslateTransition ttTarget = new TranslateTransition(Duration.millis(600 + engine.random.nextInt(500)), targetView);
+        ttTarget.setByX((engine.random.nextDouble() - 0.5) * 200);
+        ttTarget.setByY((engine.random.nextDouble() - 0.5) * 200);
+        ttTarget.setAutoReverse(true);
+        ttTarget.setCycleCount(Animation.INDEFINITE);
+        ttTarget.play();
+
         targetView.setOnMouseClicked(e -> {
             engine.bugsCaught++;
-            app.playSuccessSound();
+            app.playGunshotSound(); // 變更：改為播放專屬槍聲
             bugCatchPane.getChildren().remove(targetView);
             updateBugScoreUI();
             if (engine.bugsCaught >= 5) {
@@ -273,8 +299,11 @@ public class UIManager {
             e.consume(); // 防止點擊穿透觸發 hacking
         });
 
-        // 2. 生成 1~3 隻隨機障礙蟲
-        int obsCount = engine.random.nextInt(3) + 1;
+        // 2. 生成隨機障礙蟲 (隨關卡等級增加數量)
+        int baseObs = engine.random.nextInt(3) + 1;
+        int scaleObs = p.currentLevel / 4; // 每提升 4 等多一隻干擾蟲
+        int obsCount = baseObs + scaleObs;
+
         List<ImageView> obsList = new ArrayList<>();
         for (int i = 0; i < obsCount; i++) {
             ImageView obsView = new ImageView(obstacleBugImgs[engine.random.nextInt(obstacleBugImgs.length)]);
@@ -283,9 +312,23 @@ public class UIManager {
             obsView.setLayoutY(150 + engine.random.nextDouble() * maxY);
             obsView.setStyle("-fx-cursor: hand;");
 
+            // 隨機大小
+            double obsScale = 0.6 + engine.random.nextDouble() * 0.6;
+            obsView.setScaleX(obsScale);
+            obsView.setScaleY(obsScale);
+
+            // 難度提升：干擾蟲也會不規則移動
+            TranslateTransition ttObs = new TranslateTransition(Duration.millis(600 + engine.random.nextInt(500)), obsView);
+            ttObs.setByX((engine.random.nextDouble() - 0.5) * 250);
+            ttObs.setByY((engine.random.nextDouble() - 0.5) * 250);
+            ttObs.setAutoReverse(true);
+            ttObs.setCycleCount(Animation.INDEFINITE);
+            ttObs.play();
+
             obsView.setOnMouseClicked(e -> {
                 if (engine.bugsCaught > 0) engine.bugsCaught--; // 扣分
                 updateBugScoreUI();
+                app.playPictureHitSound(); // 新增：播放點擊圖片的專屬音效
                 bugCatchPane.getChildren().remove(obsView);
                 triggerErrorEffect(errorImage2, 2); // 觸發 error2 升級失敗同款影音
                 e.consume();

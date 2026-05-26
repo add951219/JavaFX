@@ -36,6 +36,14 @@ public class HackEngine {
     public long bugCatchDeadline = 0;
     public long lastBugSpawnTime = 0;
 
+    // === 新增：後期反制機制變數 (過熱與追蹤) ===
+    public double coreHeat = 0.0;
+    public boolean isOverheated = false;
+    public long overheatEndTime = 0;
+
+    public boolean isBeingTraced = false;
+    public double traceLevel = 0.0;
+
     public final Random random = new Random();
 
     // === 結算系統追蹤變數 ===
@@ -47,7 +55,8 @@ public class HackEngine {
     public void resetEvents() {
         isHacking = false; progress = 0.0; currentSegment = 0; comboFrames = 0; comboMultiplier = 1.0;
         isFirewallFight = false; firewallProgress = 0.5; isInterceptFight = false; isDecryptFight = false;
-        isBugCatchFight = false; // 新增重置
+        isBugCatchFight = false;
+        coreHeat = 0.0; isOverheated = false; isBeingTraced = false; traceLevel = 0.0; // 重置反制狀態
     }
 
     public void startNewRun() {
