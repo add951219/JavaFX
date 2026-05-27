@@ -13,6 +13,10 @@ public class PlayerStats {
     public int upgBot = 0;
     public int upgMine = 0;
 
+    // === 新增：反制機制專屬升級 ===
+    public int upgCoolant = 0; // 散熱組件：降低過熱累積速度
+    public int upgStealth = 0; // 隱蔽路由：減緩被追蹤的速度
+
     // 主動技能 (消耗品)
     public int empCharges = 0;
     public int slowCharges = 0;
@@ -60,6 +64,7 @@ public class PlayerStats {
         currentLevel = 1;
         darkCoins = 0;
         upgClick = 0; upgSpeed = 0; upgShield = 0; upgBot = 0; upgMine = 0;
+        upgCoolant = 0; upgStealth = 0; // 新增：重置反制升級
 
         // 變更：每次開局重置時，根據天賦賦予初始 EMP 數量
         empCharges = talentStartEMP;

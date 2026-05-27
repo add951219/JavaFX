@@ -84,9 +84,18 @@ public class HelloApplication extends Application {
 
     public void setBgmVolume(double vol) { if (bgmPlayer != null) bgmPlayer.setVolume(vol); }
 
+    public double sfxVolume = 0.5;
     public void playErrorSound(int type) {
-        if (type == 1 && errorSound1 != null) { if (errorSound1.isPlaying()) errorSound1.stop(); errorSound1.play(); }
-        else if (type == 2 && errorSound2 != null) { if (errorSound2.isPlaying()) errorSound2.stop(); errorSound2.play(); }
+        if (type == 1 && errorSound1 != null) {
+            if (errorSound1.isPlaying()) errorSound1.stop();
+            errorSound1.setVolume(sfxVolume); // 加入音量控制
+            errorSound1.play();
+        }
+        else if (type == 2 && errorSound2 != null) {
+            if (errorSound2.isPlaying()) errorSound2.stop();
+            errorSound2.setVolume(sfxVolume); // 加入音量控制
+            errorSound2.play();
+        }
     }
 
     public void playSuccessSound() {
@@ -102,6 +111,7 @@ public class HelloApplication extends Application {
     public void playGunshotSound() {
         if (gunshotSound != null) {
             if (gunshotSound.isPlaying()) gunshotSound.stop();
+            gunshotSound.setVolume(sfxVolume);
             gunshotSound.play();
         }
     }
@@ -109,6 +119,7 @@ public class HelloApplication extends Application {
     public void playPictureHitSound() {
         if (pictureHitSound != null) {
             if (pictureHitSound.isPlaying()) pictureHitSound.stop();
+            pictureHitSound.setVolume(sfxVolume);
             pictureHitSound.play();
         }
     }
@@ -142,7 +153,10 @@ public class HelloApplication extends Application {
                     } else {
                         engine.runCorrectKeystrokes++;
                         engine.firewallProgress += 0.05 + (p.upgClick * 0.015);
-                        engine.coreHeat += 0.12; // 每次點擊增加熱量
+
+                        // 再度下修發熱量：基礎值降為 0.04，可以連續狂敲超過 25 下才過熱
+                        double heatIncrease = Math.max(0.015, 0.04 - (p.upgCoolant * 0.003));
+                        engine.coreHeat += heatIncrease;
 
                         if (engine.coreHeat >= 1.0) {
                             engine.isOverheated = true;
@@ -198,7 +212,8 @@ public class HelloApplication extends Application {
                         engine.coreHeat = 0.0;
                     }
                 } else {
-                    engine.coreHeat = Math.max(0, engine.coreHeat - 0.025); // 隨時間自然降溫
+                    // 平滑化散熱速度：每一幀稍微散熱，停下不按時能更快冷卻
+                    engine.coreHeat = Math.max(0, engine.coreHeat - 0.005);
                 }
 
                 double drainRate = (0.003 + (p.currentLevel * p.routeDiffMult * 0.0008)); if (engine.isBossLevel(p.currentLevel)) drainRate *= 0.35; engine.firewallProgress -= drainRate; ui.updateFirewallUI();
@@ -241,19 +256,28 @@ public class HelloApplication extends Application {
 
                 if (engine.isBeingTraced) {
                     if (engine.isHacking) {
-                        engine.traceLevel += 0.015; // 繼續壓著滑鼠會被追蹤
+                        // 修改：依據隱蔽路由等級減緩追蹤速度 (下限保證最少會增加 0.005)
+                        double traceSpeed = Math.max(0.005, 0.015 - (p.upgStealth * 0.002));
+                        engine.traceLevel += traceSpeed;
+
                         if (engine.traceLevel >= 1.0) {
                             engine.progress = Math.max(0, engine.progress - 0.3); // 追蹤滿了，進度大扣
                             engine.isBeingTraced = false;
+                            engine.traceLevel = 0.0;
                             playErrorSound(1);
                             ui.shakeScreen();
+                            ui.typeWriterUpdate(">>> ⚠ LOCATION COMPROMISED. PROGRESS LOST ⚠");
                         }
                     } else {
                         engine.traceLevel -= 0.02; // 放開滑鼠則追蹤下降
                         if (engine.traceLevel <= 0) {
                             engine.isBeingTraced = false;
+                            engine.traceLevel = 0.0;
                         }
                     }
+                    ui.updateTraceUI(engine.traceLevel); // 更新追蹤 UI
+                } else {
+                    ui.updateTraceUI(0); // 隱藏追蹤 UI
                 }
 
                 double checkpointSize = 1.0 / engine.totalSegments; double securedProgress = engine.currentSegment * checkpointSize; double targetCheckpoint = (engine.currentSegment + 1) * checkpointSize;
@@ -296,7 +320,7 @@ public class HelloApplication extends Application {
         ui.shakeScreen(); ui.playFlashEffect(Color.rgb(255, 0, 0, 0.3), 300); ui.typeWriterUpdate(">>> PACKET LOST! CRYPTO-BARRIER COLLAPSED.");
     }
 
-    public void playLevelClearExplosion() { engine.currentState = HackEngine.GameState.PAUSED; engine.isHacking = false; Timeline explosion = new Timeline(new KeyFrame(Duration.millis(50), e -> { ui.statusLabel.setText(engine.generateRandomCode().substring(0, 40)); ui.uiBorder.setTextFill(Color.color(engine.random.nextDouble(), engine.random.nextDouble(), engine.random.nextDouble())); })); explosion.setCycleCount(15); explosion.setOnFinished(e -> triggerLevelClear()); explosion.play(); }
+    public void playLevelClearExplosion() { engine.currentState = HackEngine.GameState.PAUSED; engine.isHacking = false; ui.updateTraceUI(0); Timeline explosion = new Timeline(new KeyFrame(Duration.millis(50), e -> { ui.statusLabel.setText(engine.generateRandomCode().substring(0, 40)); ui.uiBorder.setTextFill(Color.color(engine.random.nextDouble(), engine.random.nextDouble(), engine.random.nextDouble())); })); explosion.setCycleCount(15); explosion.setOnFinished(e -> triggerLevelClear()); explosion.play(); }
 
     public void triggerLevelClear() {
         ui.playPulseEffect(); ui.playSweepTransition(Color.LIME);
@@ -308,6 +332,7 @@ public class HelloApplication extends Application {
         if (loseSound != null) { if (loseSound.isPlaying()) loseSound.stop(); loseSound.play(); }
         engine.currentState = HackEngine.GameState.GAMEOVER;
         ui.shakeScreen(); ui.playSweepTransition(Color.RED); ui.playFlashEffect(Color.rgb(255, 0, 0, 0.4), 800);
+        ui.updateTraceUI(0);
         int earnedLegacy = p.darkCoins / 10; p.legacyCoins += earnedLegacy; if (engine.runMaxCombo > p.highestCombo) p.highestCombo = engine.runMaxCombo;
         try { p.saveData(); } catch (Exception ex) { System.out.println("⚠ CRITICAL IO ERROR"); }
         ui.updateTalentUI();
@@ -323,7 +348,7 @@ public class HelloApplication extends Application {
     public void closeTalentTree() { ui.playSweepTransition(Color.CYAN); engine.currentState = HackEngine.GameState.MAIN_MENU; ui.talentLayer.setVisible(false); ui.menuLayer.setVisible(true); }
 
     public void startIntroSequence() { engine.currentState = HackEngine.GameState.INTRO; ui.menuLayer.setVisible(false); ui.introLayer.setVisible(true); Label text = (Label) ui.introLayer.getChildren().get(0); String[] lines = {"WAKING UP SYSTEM...", "ACCESS GRANTED."}; Timeline introTimeline = new Timeline(); for (int i=0; i<lines.length; i++) { final int index = i; introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(0.5 * (i+1)), e -> text.setText(lines[index]))); } introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(lines.length * 0.5 + 0.5), e -> { ui.introLayer.setVisible(false); ui.gameLayer.setVisible(true); engine.currentState = HackEngine.GameState.PLAYING; engine.startNewRun(); checkBossLevel(); })); introTimeline.play(); }
-    public void resetGame() { p.reset(); engine.resetEvents(); ui.gameOverLayer.setVisible(false); ui.gameLayer.setVisible(true); engine.currentState = HackEngine.GameState.PLAYING; engine.startNewRun(); checkBossLevel(); }
+    public void resetGame() { p.reset(); engine.resetEvents(); ui.gameOverLayer.setVisible(false); ui.gameLayer.setVisible(true); ui.updateTraceUI(0); engine.currentState = HackEngine.GameState.PLAYING; engine.startNewRun(); checkBossLevel(); }
 
     public void returnToMenu() { ui.playSweepTransition(Color.WHITE); ui.pauseLayer.setVisible(false); ui.gameLayer.setVisible(false); ui.shopLayer.setVisible(false); ui.gameOverLayer.setVisible(false); ui.routeLayer.setVisible(false); ui.menuLayer.setVisible(true); resetGame(); engine.currentState = HackEngine.GameState.MAIN_MENU; }
     public void enterShop() { ui.playSweepTransition(Color.LIME); ui.routeLayer.setVisible(false); ui.updateShopUI(); ui.shopLayer.setVisible(true); engine.currentState = HackEngine.GameState.SHOP; }

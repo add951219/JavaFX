@@ -24,6 +24,8 @@ public class UIManager {
     public Label progressDisplay, statusLabel, uiBorder, matrixBg, coinDisplay, comboDisplay, highScoreDisplay, talentCoinDisplay;
     public Label firewallBarDisplay, interceptTimeDisplay, decryptTargetDisplay, decryptInputDisplay, decryptTimeDisplay, bugScoreLabel, bugTimeLabel;
     public Label gameOverReasonLabel, gameOverStatsLabel, skillDisplay, glitchWarningLabel, talentNameLabel, talentEffectLabel, talentCostLabel;
+    public Label traceWarningLabel;
+    public Label shopDescLabel; // 新增：商店專用的懸停說明標籤
 
     public HBox interceptTargetDisplay;
     public AnchorPane bugCatchPane;
@@ -33,19 +35,18 @@ public class UIManager {
     public VBox descBox;
     public ImageView errorImage1, errorImage2;
 
+    // === 新增：為了動態更新價格，將商店按鈕獨立出來 ===
+    public Button btnShopClick, btnShopSpeed, btnShopCoolant, btnShopStealth, btnShopEmp, btnShopSlow;
+
     public Slider menuVolumeSlider, pauseVolumeSlider;
 
     private Group treeGroup;
     public String currentTargetText = "";
 
-    // 美術視覺特效物件
     private DropShadow neonGlowCyan, neonGlowPink, neonGlowGreen;
-
-    // 高科技視覺疊加層
     public Rectangle flashOverlay;
     public Rectangle scanline;
 
-    // 蟲子圖片快取
     private Image targetBugImg;
     private Image[] obstacleBugImgs;
 
@@ -107,9 +108,15 @@ public class UIManager {
         VBox gameBox = new VBox(10); gameBox.setAlignment(Pos.CENTER);
         statusLabel = new Label(""); statusLabel.setTextFill(Color.CYAN); statusLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
         glitchWarningLabel = new Label(" [系統狀態：傳輸環境安全]"); glitchWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 15)); glitchWarningLabel.setTextFill(Color.LIME);
+
+        traceWarningLabel = new Label("");
+        traceWarningLabel.setTextFill(Color.RED);
+        traceWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 16));
+        traceWarningLabel.setVisible(false);
+
         progressDisplay = new Label("LEVEL 1 [....☼....☼....☼....] 0%"); progressDisplay.setTextFill(Color.LIME); progressDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 28));
         comboDisplay = new Label("COMBO: x1.0"); comboDisplay.setTextFill(Color.YELLOW); comboDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
-        gameBox.getChildren().addAll(statusLabel, glitchWarningLabel, comboDisplay, progressDisplay); gameLayer = new StackPane(uiBorder, gameBox); gameLayer.setVisible(false);
+        gameBox.getChildren().addAll(statusLabel, glitchWarningLabel, traceWarningLabel, comboDisplay, progressDisplay); gameLayer = new StackPane(uiBorder, gameBox); gameLayer.setVisible(false);
         skillDisplay = new Label("[1] EMP: 0   [2] SLOW: 0"); skillDisplay.setTextFill(Color.WHITE); skillDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 16)); StackPane.setAlignment(skillDisplay, Pos.BOTTOM_LEFT); gameLayer.getChildren().add(skillDisplay);
 
         honeypotBtn = new Button("⚠ [NODE VULNERABILITY] CLICK FOR 300 ¢"); honeypotBtn.setStyle("-fx-background-color: #330000; -fx-text-fill: #FF3333; -fx-border-color: red; -fx-cursor: hand;"); StackPane.setAlignment(honeypotBtn, Pos.TOP_RIGHT); honeypotBtn.setVisible(false); honeypotBtn.setOnAction(e -> app.handleHoneypotTrap()); gameLayer.getChildren().add(honeypotBtn);
@@ -192,7 +199,18 @@ public class UIManager {
         SequentialTransition seq = new SequentialTransition(emerge, hold, submerge); seq.setOnFinished(e -> errorImg.setVisible(false)); seq.play();
     }
 
-    // === 修改：防火牆 UI 加入過熱警告 ===
+    public void updateTraceUI(double traceLevel) {
+        if (traceLevel > 0) {
+            traceWarningLabel.setVisible(true);
+            int bars = (int)(Math.min(1.0, traceLevel) * 20);
+            int dots = 20 - bars;
+            traceWarningLabel.setText(String.format("⚠ 警告：反追蹤系統鎖定中 [%s%s] %d%% ⚠", "|".repeat(bars), ".".repeat(dots), (int)(traceLevel*100)));
+            traceWarningLabel.setEffect(new DropShadow(10, Color.RED));
+        } else {
+            traceWarningLabel.setVisible(false);
+        }
+    }
+
     public void updateFirewallUI() {
         int bars = (int) Math.max(0, Math.min(20, engine.firewallProgress * 20));
         int dots = 20 - bars;
@@ -228,11 +246,10 @@ public class UIManager {
 
         decryptLayer = new StackPane(); decryptLayer.setStyle("-fx-background-color: rgba(0, 40, 0, 0.9);"); VBox decBox = new VBox(15); decBox.setAlignment(Pos.CENTER); Label decTitle = new Label("??? ENCRYPTED NODE ???"); decTitle.setTextFill(Color.LIME); decTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 35)); decryptTargetDisplay = new Label("MEMORIZE THIS"); decryptTargetDisplay.setTextFill(Color.WHITE); decryptTargetDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 50)); decryptTargetDisplay.setEffect(neonGlowGreen); decryptInputDisplay = new Label("> _"); decryptInputDisplay.setTextFill(Color.CYAN); decryptInputDisplay.setFont(Font.font("Consolas", 40)); decryptTimeDisplay = new Label("Time left: 4.0s"); decryptTimeDisplay.setTextFill(Color.WHITE); decBox.getChildren().addAll(decTitle, decryptTargetDisplay, decryptInputDisplay, decryptTimeDisplay); decryptLayer.getChildren().add(decBox); decryptLayer.setVisible(false);
 
-        // === 新增：打蟲子關卡 UI ===
         bugCatchLayer = new StackPane();
         bugCatchLayer.setStyle("-fx-background-color: rgba(30, 0, 0, 0.85);");
         bugCatchPane = new AnchorPane();
-        bugCatchPane.setPrefSize(800, 600); // 負責讓蟲子隨機座標
+        bugCatchPane.setPrefSize(800, 600);
 
         VBox bugInfoBox = new VBox(10);
         bugInfoBox.setAlignment(Pos.TOP_CENTER);
@@ -257,27 +274,23 @@ public class UIManager {
         bugCatchLayer.setVisible(false);
     }
 
-    // === 新增：刷新畫面上的標靶與障礙物 ===
     public void spawnBugsForEvent() {
         bugCatchPane.getChildren().clear();
         if (targetBugImg == null || obstacleBugImgs == null) return;
 
-        double maxX = 650; // 安全範圍
+        double maxX = 650;
         double maxY = 400;
 
-        // 1. 生成 1 隻標靶
         ImageView targetView = new ImageView(targetBugImg);
         targetView.setFitWidth(80); targetView.setFitHeight(80);
         targetView.setLayoutX(50 + engine.random.nextDouble() * maxX);
         targetView.setLayoutY(150 + engine.random.nextDouble() * maxY);
         targetView.setStyle("-fx-cursor: hand;");
 
-        // 難度提升：隨機大小縮放 (0.5x ~ 1.0x)
         double targetScale = 0.5 + engine.random.nextDouble() * 0.5;
         targetView.setScaleX(targetScale);
         targetView.setScaleY(targetScale);
 
-        // 難度提升：加上不規則移動動畫
         TranslateTransition ttTarget = new TranslateTransition(Duration.millis(600 + engine.random.nextInt(500)), targetView);
         ttTarget.setByX((engine.random.nextDouble() - 0.5) * 200);
         ttTarget.setByY((engine.random.nextDouble() - 0.5) * 200);
@@ -287,7 +300,7 @@ public class UIManager {
 
         targetView.setOnMouseClicked(e -> {
             engine.bugsCaught++;
-            app.playGunshotSound(); // 變更：改為播放專屬槍聲
+            app.playGunshotSound();
             bugCatchPane.getChildren().remove(targetView);
             updateBugScoreUI();
             if (engine.bugsCaught >= 5) {
@@ -296,12 +309,11 @@ public class UIManager {
                 typeWriterUpdate(">>> BUG SWARM CLEARED.");
                 engine.currentSegment++;
             }
-            e.consume(); // 防止點擊穿透觸發 hacking
+            e.consume();
         });
 
-        // 2. 生成隨機障礙蟲 (隨關卡等級增加數量)
         int baseObs = engine.random.nextInt(3) + 1;
-        int scaleObs = p.currentLevel / 4; // 每提升 4 等多一隻干擾蟲
+        int scaleObs = p.currentLevel / 4;
         int obsCount = baseObs + scaleObs;
 
         List<ImageView> obsList = new ArrayList<>();
@@ -312,12 +324,10 @@ public class UIManager {
             obsView.setLayoutY(150 + engine.random.nextDouble() * maxY);
             obsView.setStyle("-fx-cursor: hand;");
 
-            // 隨機大小
             double obsScale = 0.6 + engine.random.nextDouble() * 0.6;
             obsView.setScaleX(obsScale);
             obsView.setScaleY(obsScale);
 
-            // 難度提升：干擾蟲也會不規則移動
             TranslateTransition ttObs = new TranslateTransition(Duration.millis(600 + engine.random.nextInt(500)), obsView);
             ttObs.setByX((engine.random.nextDouble() - 0.5) * 250);
             ttObs.setByY((engine.random.nextDouble() - 0.5) * 250);
@@ -326,18 +336,18 @@ public class UIManager {
             ttObs.play();
 
             obsView.setOnMouseClicked(e -> {
-                if (engine.bugsCaught > 0) engine.bugsCaught--; // 扣分
+                if (engine.bugsCaught > 0) engine.bugsCaught--;
                 updateBugScoreUI();
-                app.playPictureHitSound(); // 新增：播放點擊圖片的專屬音效
+                app.playPictureHitSound();
                 bugCatchPane.getChildren().remove(obsView);
-                triggerErrorEffect(errorImage2, 2); // 觸發 error2 升級失敗同款影音
+                triggerErrorEffect(errorImage2, 2);
                 e.consume();
             });
             obsList.add(obsView);
         }
 
         bugCatchPane.getChildren().addAll(obsList);
-        bugCatchPane.getChildren().add(targetView); // 目標放在最上層避免被完全遮擋
+        bugCatchPane.getChildren().add(targetView);
     }
 
     public void updateBugScoreUI() {
@@ -352,14 +362,59 @@ public class UIManager {
         btnBox.getChildren().addAll(btnNormal, btnHard); routeBox.getChildren().addAll(title, btnBox); routeLayer.getChildren().add(routeBox); routeLayer.setVisible(false);
     }
 
+    // === 修正與優化：加入商店說明 Tooltip 標籤與動態綁定機制 ===
     private void buildShopLayer() {
         shopLayer = new StackPane(); shopLayer.setStyle("-fx-background-color: #050505;"); VBox shopBox = new VBox(10); shopBox.setAlignment(Pos.CENTER); Label shopTitle = new Label("--- BLACK MARKET ---"); shopTitle.setTextFill(Color.LIME); shopTitle.setFont(Font.font("Consolas", 40)); shopTitle.setEffect(neonGlowGreen); coinDisplay = new Label("DarkCoins: 0 ¢"); coinDisplay.setTextFill(Color.GOLD); coinDisplay.setFont(Font.font("Consolas", 25));
-        Button btn1 = createShopButton("重磅封包 (Lv."+p.upgClick+") [Cost: 100¢]", 100); btn1.setOnAction(e -> { if(p.buy(100)) p.upgClick++; btn1.setText("重磅封包 (Lv."+p.upgClick+") [Cost: 100¢]"); updateShopUI(); });
-        Button btn2 = createShopButton("注入加速 (Lv."+p.upgSpeed+") [Cost: 150¢]", 150); btn2.setOnAction(e -> { if(p.buy(150)) p.upgSpeed++; btn2.setText("注入加速 (Lv."+p.upgSpeed+") [Cost: 150¢]"); updateShopUI(); });
-        Button btnEmp = createShopButton("EMP 脈衝彈 (炸 firewall) [Cost: 200¢]", 200); btnEmp.setOnAction(e -> { if(p.buy(200)) p.empCharges++; updateShopUI(); });
-        Button btnSlow = createShopButton("超頻沙漏 (緩速破解) [Cost: 250¢]", 250); btnSlow.setOnAction(e -> { if(p.buy(250)) p.slowCharges++; updateShopUI(); });
+
+        // 初始化說明欄標籤
+        shopDescLabel = new Label(">>> 游標懸停以查看組件說明 <<<");
+        shopDescLabel.setTextFill(Color.LIGHTGRAY);
+        shopDescLabel.setFont(Font.font("Consolas", 14));
+        shopDescLabel.setStyle("-fx-background-color: rgba(20, 20, 30, 0.8); -fx-padding: 10; -fx-border-color: #00FFCC; -fx-border-width: 1; -fx-max-width: 450; -fx-wrap-text: true;");
+        shopDescLabel.setAlignment(Pos.CENTER);
+        shopDescLabel.setTextAlignment(TextAlignment.CENTER);
+        shopDescLabel.setMinHeight(60);
+
+        btnShopClick = createShopButton("", 0);
+        btnShopClick.setOnAction(e -> { int cost = 100 + p.upgClick * 150; if(p.buy(cost)) { p.upgClick++; updateShopUI(); } });
+        addShopHoverDesc(btnShopClick, "「重磅封包」\n增加每次敲擊空白鍵對防火牆造成的破壞力。\n(適合喜歡重擊突破的駭客)");
+
+        btnShopSpeed = createShopButton("", 0);
+        btnShopSpeed.setOnAction(e -> { int cost = 150 + p.upgSpeed * 200; if(p.buy(cost)) { p.upgSpeed++; updateShopUI(); } });
+        addShopHoverDesc(btnShopSpeed, "「注入加速」\n提升一般節點的自動注入速度，減少滑鼠長按時間。\n(防追蹤必備)");
+
+        btnShopCoolant = createShopButton("", 0);
+        btnShopCoolant.setOnAction(e -> { int cost = 120 + p.upgCoolant * 180; if(p.buy(cost)) { p.upgCoolant++; updateShopUI(); } });
+        addShopHoverDesc(btnShopCoolant, "「散熱組件」\n降低敲擊空白鍵產生的熱量，延緩過熱鎖定。\n(適合手速極快的駭客)");
+
+        btnShopStealth = createShopButton("", 0);
+        btnShopStealth.setOnAction(e -> { int cost = 120 + p.upgStealth * 180; if(p.buy(cost)) { p.upgStealth++; updateShopUI(); } });
+        addShopHoverDesc(btnShopStealth, "「隱蔽路由」\n減緩在一般節點被反追蹤系統鎖定的速度。\n(增加隱蔽容錯率)");
+
+        btnShopEmp = createShopButton("", 0);
+        btnShopEmp.setOnAction(e -> { int cost = 200 + p.empCharges * 150; if(p.buy(cost)) { p.empCharges++; updateShopUI(); } });
+        addShopHoverDesc(btnShopEmp, "「EMP 脈衝彈」\n消耗品。在防火牆戰鬥中按 [1] 瞬間炸毀大量防禦。");
+
+        btnShopSlow = createShopButton("", 0);
+        btnShopSlow.setOnAction(e -> { int cost = 250 + p.slowCharges * 200; if(p.buy(cost)) { p.slowCharges++; updateShopUI(); } });
+        addShopHoverDesc(btnShopSlow, "「超頻沙漏」\n消耗品。在限時戰鬥中按 [2] 延長駭入時間。");
+
         Button btnNext = createStyledButton(">>> INJECT PAYLOAD <<<"); btnNext.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; shopLayer.setVisible(false); gameLayer.setVisible(true); engine.resetEvents(); app.checkBossLevel(); });
-        shopBox.getChildren().addAll(shopTitle, coinDisplay, btn1, btn2, btnEmp, btnSlow, btnNext); shopLayer.getChildren().add(shopBox); shopLayer.setVisible(false);
+
+        shopBox.getChildren().addAll(shopTitle, coinDisplay, btnShopClick, btnShopSpeed, btnShopCoolant, btnShopStealth, btnShopEmp, btnShopSlow, shopDescLabel, btnNext); shopLayer.getChildren().add(shopBox); shopLayer.setVisible(false);
+    }
+
+    // 專門處理滑鼠懸停顯示說明的 Helper 方法
+    private void addShopHoverDesc(Button btn, String desc) {
+        btn.hoverProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                shopDescLabel.setText(desc);
+                shopDescLabel.setTextFill(Color.WHITE);
+            } else {
+                shopDescLabel.setText(">>> 游標懸停以查看組件說明 <<<");
+                shopDescLabel.setTextFill(Color.LIGHTGRAY);
+            }
+        });
     }
 
     private void buildTalentLayerStructure() {
@@ -393,7 +448,18 @@ public class UIManager {
         if (engine.activeGlitch == HackEngine.GlitchType.NONE) { glitchWarningLabel.setText(" [系統狀態：傳輸環境安全]"); glitchWarningLabel.setTextFill(Color.LIME); glitchWarningLabel.setEffect(null); } else if (engine.activeGlitch == HackEngine.GlitchType.NETWORK_LAG) { glitchWarningLabel.setText("⚠ 環境詛咒：[NETWORK_LAG] 延遲嚴重 ⚠"); glitchWarningLabel.setTextFill(Color.ORANGE); glitchWarningLabel.setEffect(new DropShadow(8, Color.ORANGE)); } else if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { glitchWarningLabel.setText("⚠ 環境詛咒：[VISUAL_DISTORTION] 視覺污染 ⚠"); glitchWarningLabel.setTextFill(Color.web("#FF007F")); glitchWarningLabel.setEffect(neonGlowPink); } else if (engine.activeGlitch == HackEngine.GlitchType.CORE_OVERLOAD) { glitchWarningLabel.setText("⚠ 環境詛咒：[CORE_OVERLOAD] 核心超載 ⚠"); glitchWarningLabel.setTextFill(Color.RED); glitchWarningLabel.setEffect(new DropShadow(12, Color.RED)); }
     }
 
-    public void updateShopUI() { coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢"); skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges); }
+    public void updateShopUI() {
+        coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢");
+        skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges);
+
+        btnShopClick.setText(String.format("重磅封包 (Lv.%d) [Cost: %d¢]", p.upgClick, 100 + p.upgClick * 150));
+        btnShopSpeed.setText(String.format("注入加速 (Lv.%d) [Cost: %d¢]", p.upgSpeed, 150 + p.upgSpeed * 200));
+        btnShopCoolant.setText(String.format("散熱組件 (Lv.%d) [Cost: %d¢]", p.upgCoolant, 120 + p.upgCoolant * 180));
+        btnShopStealth.setText(String.format("隱蔽路由 (Lv.%d) [Cost: %d¢]", p.upgStealth, 120 + p.upgStealth * 180));
+        btnShopEmp.setText(String.format("EMP 脈衝彈 [Cost: %d¢]", 200 + p.empCharges * 150));
+        btnShopSlow.setText(String.format("超頻沙漏 [Cost: %d¢]", 250 + p.slowCharges * 200));
+    }
+
     public void updateTalentUI() { talentCoinDisplay.setText("LEGACY COINS: " + p.legacyCoins + " ¢"); highScoreDisplay.setText("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢"); drawTalentTreeNodes(); }
 
     public void updateInterceptUI() {
