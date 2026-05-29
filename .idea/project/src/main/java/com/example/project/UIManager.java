@@ -3,6 +3,9 @@ package com.example.project;
 import javafx.animation.*;
 import javafx.geometry.Pos;
 import javafx.scene.Group;
+import javafx.scene.Node;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
 import javafx.scene.layout.*;
@@ -10,7 +13,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.*;
 import javafx.scene.text.*;
 import javafx.scene.effect.DropShadow;
-import javafx.scene.effect.GaussianBlur;
 import javafx.util.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,11 +23,16 @@ public class UIManager {
     private final HelloApplication app;
 
     public StackPane root, menuLayer, introLayer, gameLayer, pauseLayer, firewallLayer, interceptLayer, decryptLayer, bugCatchLayer, shopLayer, gameOverLayer, routeLayer, talentLayer;
-    public Label progressDisplay, statusLabel, uiBorder, matrixBg, coinDisplay, comboDisplay, highScoreDisplay, talentCoinDisplay;
+
+    public StackPane bossIntroLayer, bossFailLayer;
+    public Label bossIntroTitle, bossIntroName, bossFailReason;
+    public Button btnBossRetry, btnBossEscape;
+
+    public Label progressDisplay, statusLabel, uiBorder, coinDisplay, comboDisplay, highScoreDisplay, talentCoinDisplay;
     public Label firewallBarDisplay, interceptTimeDisplay, decryptTargetDisplay, decryptInputDisplay, decryptTimeDisplay, bugScoreLabel, bugTimeLabel;
     public Label gameOverReasonLabel, gameOverStatsLabel, skillDisplay, glitchWarningLabel, talentNameLabel, talentEffectLabel, talentCostLabel;
     public Label traceWarningLabel;
-    public Label shopDescLabel; // 新增：商店專用的懸停說明標籤
+    public Label shopDescLabel;
 
     public HBox interceptTargetDisplay;
     public AnchorPane bugCatchPane;
@@ -35,20 +42,23 @@ public class UIManager {
     public VBox descBox;
     public ImageView errorImage1, errorImage2;
 
-    // === 新增：為了動態更新價格，將商店按鈕獨立出來 ===
     public Button btnShopClick, btnShopSpeed, btnShopCoolant, btnShopStealth, btnShopEmp, btnShopSlow;
-
     public Slider menuVolumeSlider, pauseVolumeSlider;
 
     private Group treeGroup;
     public String currentTargetText = "";
 
     private DropShadow neonGlowCyan, neonGlowPink, neonGlowGreen;
-    public Rectangle flashOverlay;
-    public Rectangle scanline;
+    public Rectangle flashOverlay, scanline;
 
     private Image targetBugImg;
     private Image[] obstacleBugImgs;
+
+    public Canvas matrixCanvas;
+    private GraphicsContext gc;
+    private final int matrixCols = 40;
+    private final double[] dropY = new double[matrixCols];
+    private final double[] dropSpeed = new double[matrixCols];
 
     public UIManager(PlayerStats p, HackEngine engine, HelloApplication app) {
         this.p = p; this.engine = engine; this.app = app;
@@ -63,18 +73,18 @@ public class UIManager {
 
         try {
             targetBugImg = new Image(getClass().getResource("/bug.png").toExternalForm());
-            obstacleBugImgs = new Image[]{
-                    new Image(getClass().getResource("/chen1.jpg").toExternalForm()),
-                    new Image(getClass().getResource("/chen2.jpg").toExternalForm()),
-                    new Image(getClass().getResource("/chen3.png").toExternalForm())
-            };
-        } catch (Exception e) { System.out.println("蟲子圖片載入失敗，請確認圖檔路徑"); }
+            obstacleBugImgs = new Image[]{ new Image(getClass().getResource("/chen1.jpg").toExternalForm()), new Image(getClass().getResource("/chen2.jpg").toExternalForm()), new Image(getClass().getResource("/chen3.png").toExternalForm()) };
+        } catch (Exception e) {}
     }
 
     private void buildVisuals() {
         root = new StackPane(); root.setStyle("-fx-background-color: #0b0c10;");
-        matrixBg = new Label(); matrixBg.setTextFill(Color.rgb(0, 255, 204, 0.15)); matrixBg.setFont(Font.font("Consolas", 12)); matrixBg.setAlignment(Pos.TOP_LEFT);
-        matrixBg.setEffect(new GaussianBlur(1.5));
+
+        matrixCanvas = new Canvas(800, 600);
+        gc = matrixCanvas.getGraphicsContext2D();
+        for (int i = 0; i < matrixCols; i++) {
+            dropY[i] = engine.random.nextDouble() * 600; dropSpeed[i] = 1.5 + engine.random.nextDouble() * 2.5;
+        }
 
         Label crtOverlay = new Label(); crtOverlay.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE); crtOverlay.setStyle("-fx-background-color: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 1px, rgba(0,255,0,0.03) 2px, rgba(0,255,0,0.03) 3px);"); crtOverlay.setMouseTransparent(true);
 
@@ -91,11 +101,9 @@ public class UIManager {
         Button btnExit = createStyledButton(">>> DISCONNECT SYSTEM <<<"); setupNeonButtonAnimation(btnExit, "#555555", "rgba(85, 85, 85, 0.1)"); btnExit.setOnAction(e -> System.exit(0));
 
         bootWarningLabel = new Label("⚠ WARNING: LOCAL SUBNET REPORTING QUANTUM FLUCTUATIONS ⚠"); bootWarningLabel.setTextFill(Color.rgb(255, 50, 50, 0.6)); bootWarningLabel.setFont(Font.font("Consolas", 11));
-
         Label menuVolLabel = new Label("SYS_VOL:"); menuVolLabel.setTextFill(Color.CYAN); menuVolLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
         menuVolumeSlider = new Slider(0, 1, 0.5); menuVolumeSlider.setMaxWidth(200); menuVolumeSlider.setStyle("-fx-cursor: hand;");
         HBox menuVolBox = new HBox(10, menuVolLabel, menuVolumeSlider); menuVolBox.setAlignment(Pos.CENTER);
-
         menuBox.getChildren().addAll(versionLabel, title, highScoreDisplay, systemStatusLabel, btnStart, btnOpenTalents, btnExit, bootWarningLabel, menuVolBox); menuLayer.getChildren().add(menuBox);
 
         FadeTransition statusBlink = new FadeTransition(Duration.millis(800), systemStatusLabel); statusBlink.setFromValue(1.0); statusBlink.setToValue(0.3); statusBlink.setCycleCount(Animation.INDEFINITE); statusBlink.setAutoReverse(true); statusBlink.play();
@@ -109,51 +117,116 @@ public class UIManager {
         statusLabel = new Label(""); statusLabel.setTextFill(Color.CYAN); statusLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 18));
         glitchWarningLabel = new Label(" [系統狀態：傳輸環境安全]"); glitchWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 15)); glitchWarningLabel.setTextFill(Color.LIME);
 
-        traceWarningLabel = new Label("");
-        traceWarningLabel.setTextFill(Color.RED);
-        traceWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 16));
-        traceWarningLabel.setVisible(false);
+        traceWarningLabel = new Label(""); traceWarningLabel.setTextFill(Color.RED); traceWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 16)); traceWarningLabel.setVisible(false);
 
         progressDisplay = new Label("LEVEL 1 [....☼....☼....☼....] 0%"); progressDisplay.setTextFill(Color.LIME); progressDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 28));
         comboDisplay = new Label("COMBO: x1.0"); comboDisplay.setTextFill(Color.YELLOW); comboDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 20));
-        gameBox.getChildren().addAll(statusLabel, glitchWarningLabel, traceWarningLabel, comboDisplay, progressDisplay); gameLayer = new StackPane(uiBorder, gameBox); gameLayer.setVisible(false);
+        gameBox.getChildren().addAll(statusLabel, glitchWarningLabel, traceWarningLabel, comboDisplay, progressDisplay);
+        gameLayer = new StackPane(uiBorder, gameBox); gameLayer.setVisible(false);
         skillDisplay = new Label("[1] EMP: 0   [2] SLOW: 0"); skillDisplay.setTextFill(Color.WHITE); skillDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 16)); StackPane.setAlignment(skillDisplay, Pos.BOTTOM_LEFT); gameLayer.getChildren().add(skillDisplay);
 
         honeypotBtn = new Button("⚠ [NODE VULNERABILITY] CLICK FOR 300 ¢"); honeypotBtn.setStyle("-fx-background-color: #330000; -fx-text-fill: #FF3333; -fx-border-color: red; -fx-cursor: hand;"); StackPane.setAlignment(honeypotBtn, Pos.TOP_RIGHT); honeypotBtn.setVisible(false); honeypotBtn.setOnAction(e -> app.handleHoneypotTrap()); gameLayer.getChildren().add(honeypotBtn);
 
         buildEventLayers(); buildRouteLayer(); buildShopLayer(); buildTalentLayerStructure();
+        buildBossLayers();
 
         pauseLayer = new StackPane(); pauseLayer.setStyle("-fx-background-color: rgba(0,0,0,0.85);");
         VBox pauseBox = new VBox(20); pauseBox.setAlignment(Pos.CENTER); Label pauseTitle = new Label("SYSTEM PAUSED"); pauseTitle.setTextFill(Color.WHITE); pauseTitle.setFont(Font.font("Consolas", 40));
-
         Label pauseVolLabel = new Label("SYS_VOL:"); pauseVolLabel.setTextFill(Color.CYAN); pauseVolLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
         pauseVolumeSlider = new Slider(0, 1, 0.5); pauseVolumeSlider.setMaxWidth(200); pauseVolumeSlider.setStyle("-fx-cursor: hand;");
         HBox pauseVolBox = new HBox(10, pauseVolLabel, pauseVolumeSlider); pauseVolBox.setAlignment(Pos.CENTER);
-
         menuVolumeSlider.valueProperty().bindBidirectional(pauseVolumeSlider.valueProperty());
         menuVolumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> { app.setBgmVolume(newVal.doubleValue()); });
 
         Button btnResume = createStyledButton("RESUME"); btnResume.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; pauseLayer.setVisible(false); });
         Button btnMenuPause = createStyledButton("ABORT TO MENU"); btnMenuPause.setOnAction(e -> app.returnToMenu());
-
         pauseBox.getChildren().addAll(pauseTitle, pauseVolBox, btnResume, btnMenuPause); pauseLayer.getChildren().add(pauseBox); pauseLayer.setVisible(false);
 
         gameOverLayer = new StackPane(); gameOverLayer.setStyle("-fx-background-color: rgba(139, 0, 0, 0.95);");
         VBox overBox = new VBox(20); overBox.setAlignment(Pos.CENTER);
         gameOverReasonLabel = new Label(""); gameOverReasonLabel.setTextFill(Color.RED); gameOverReasonLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 45));
-
         gameOverStatsLabel = new Label(""); gameOverStatsLabel.setTextFill(Color.WHITE); gameOverStatsLabel.setFont(Font.font("Consolas", 18)); gameOverStatsLabel.setTextAlignment(TextAlignment.CENTER);
-
         Button btnRestart = createStyledButton("SYSTEM REBOOT"); btnRestart.setOnAction(e -> app.resetGame());
         Button btnMenuDead = createStyledButton("RETURN TO MENU"); btnMenuDead.setOnAction(e -> app.returnToMenu());
         overBox.getChildren().addAll(gameOverReasonLabel, gameOverStatsLabel, btnRestart, btnMenuDead); gameOverLayer.getChildren().add(overBox); gameOverLayer.setVisible(false);
 
         errorImage1 = loadEmergeErrorImage("error1.jpg"); errorImage2 = loadEmergeErrorImage("error2.jpg");
-
         flashOverlay = new Rectangle(800, 600, Color.TRANSPARENT); flashOverlay.setMouseTransparent(true);
         scanline = new Rectangle(800, 6, Color.CYAN); scanline.setVisible(false); scanline.setMouseTransparent(true);
 
-        root.getChildren().addAll(matrixBg, gameLayer, crtOverlay, firewallLayer, interceptLayer, decryptLayer, bugCatchLayer, routeLayer, shopLayer, introLayer, gameOverLayer, talentLayer, pauseLayer, menuLayer, errorImage1, errorImage2, flashOverlay, scanline);
+        Node[] allLayers = { matrixCanvas, gameLayer, crtOverlay, firewallLayer, interceptLayer, decryptLayer, bugCatchLayer, routeLayer, shopLayer, introLayer, gameOverLayer, bossIntroLayer, bossFailLayer, talentLayer, pauseLayer, menuLayer, errorImage1, errorImage2, flashOverlay, scanline };
+        for (Node layer : allLayers) if (layer != null) root.getChildren().add(layer);
+    }
+
+    private void buildBossLayers() {
+        bossIntroLayer = new StackPane(); bossIntroLayer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.95);");
+        VBox introBox = new VBox(20); introBox.setAlignment(Pos.CENTER);
+        bossIntroTitle = new Label("⚠ CRITICAL THREAT DETECTED ⚠"); bossIntroTitle.setTextFill(Color.RED); bossIntroTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 24));
+        bossIntroName = new Label(""); bossIntroName.setTextFill(Color.WHITE); bossIntroName.setFont(Font.font("Impact", 60));
+        introBox.getChildren().addAll(bossIntroTitle, bossIntroName); bossIntroLayer.getChildren().add(introBox); bossIntroLayer.setVisible(false);
+
+        bossFailLayer = new StackPane(); bossFailLayer.setStyle("-fx-background-color: rgba(60, 0, 0, 0.95);");
+        VBox failBox = new VBox(20); failBox.setAlignment(Pos.CENTER);
+        Label fTitle = new Label(">>> SYNCHRONIZATION LOST <<<"); fTitle.setTextFill(Color.RED); fTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 40));
+        bossFailReason = new Label("PHASE FAILED"); bossFailReason.setTextFill(Color.ORANGE); bossFailReason.setFont(Font.font("Consolas", 20));
+        btnBossRetry = createStyledButton(">>> REBOOT PHASE (Rage +1) <<<"); btnBossRetry.setOnAction(e -> app.retryBossPhase());
+
+        btnBossEscape = createStyledButton(">>> 強制斷線生死賭局 (WARNING: 失敗即死) <<<");
+        setupNeonButtonAnimation(btnBossEscape, "#FF3333", "rgba(255, 51, 51, 0.2)");
+        btnBossEscape.setOnAction(e -> app.escapeBoss());
+
+        failBox.getChildren().addAll(fTitle, bossFailReason, btnBossRetry, btnBossEscape); bossFailLayer.getChildren().add(failBox); bossFailLayer.setVisible(false);
+    }
+
+    public void playBossIntroAnimation(String title, String codeName, Color themeColor, Runnable onFinished) {
+        bossIntroLayer.setVisible(true); bossIntroTitle.setText(title); bossIntroName.setText(""); bossIntroName.setEffect(new DropShadow(20, themeColor));
+        Timeline timeline = new Timeline();
+        for (int i = 0; i <= codeName.length(); i++) {
+            final String text = codeName.substring(0, i);
+            timeline.getKeyFrames().add(new KeyFrame(Duration.millis(i * 100), e -> {
+                bossIntroName.setText(text);
+                // 移除打字音效，完全不干擾 boss_intro.mp3 的播放
+            }));
+        }
+        timeline.getKeyFrames().add(new KeyFrame(Duration.millis(codeName.length() * 100 + 1500), e -> { bossIntroLayer.setVisible(false); if (onFinished != null) onFinished.run(); }));
+        timeline.play();
+    }
+
+    public void drawMatrixRain() {
+        if (gc == null) return;
+        gc.setFill(Color.rgb(11, 12, 16, 0.18)); gc.fillRect(0, 0, 800, 600); gc.setFont(Font.font("Consolas", FontWeight.BOLD, 16));
+
+        boolean isBoss = engine.isBossFight;
+        boolean isOverheated = engine.isOverheated;
+        boolean isTraced = engine.isBeingTraced;
+
+        for (int i = 0; i < matrixCols; i++) {
+            String text = String.valueOf((char)(engine.random.nextInt(94) + 33));
+            Color charColor = Color.rgb(0, 255, 204, 0.8);
+
+            if (isBoss) {
+                if (engine.currentBossType == HackEngine.BossType.SENTINEL) charColor = Color.rgb(50, 150, 255, 0.9);
+                else if (engine.currentBossType == HackEngine.BossType.PHANTOM) charColor = Color.rgb(200, 0, 255, 0.9);
+                else if (engine.currentBossType == HackEngine.BossType.CERBERUS) charColor = Color.rgb(255, 80, 0, 0.9);
+                else if (engine.currentBossType == HackEngine.BossType.ARCHITECT) charColor = Color.rgb(255, 255, 100, 0.9);
+                else charColor = Color.rgb(255, 50, 50, 0.9);
+            }
+
+            if (isTraced && engine.random.nextInt(8) == 0) { text = "⚠"; charColor = Color.RED; }
+
+            double x = i * 20; double y = dropY[i];
+            if (isOverheated) { charColor = Color.rgb(255, 150, 0, 0.9); x += (engine.random.nextDouble() - 0.5) * 6.0; }
+            else if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { x += (engine.random.nextDouble() - 0.5) * 4.0; }
+
+            gc.setFill(charColor); gc.fillText(text, x, y);
+
+            double currentSpeed = dropSpeed[i];
+            if (isBoss) { currentSpeed *= 1.4; if (engine.bossPhase == 3) currentSpeed *= 1.5; }
+            if (isOverheated) currentSpeed *= 0.5;
+
+            dropY[i] += currentSpeed;
+            if (dropY[i] > 600 && engine.random.nextDouble() > 0.92) { dropY[i] = 0; dropSpeed[i] = 1.5 + engine.random.nextDouble() * 2.5; }
+        }
     }
 
     public void playSweepTransition(Color color) {
@@ -164,18 +237,9 @@ public class UIManager {
         FadeTransition ft = new FadeTransition(Duration.millis(350), scanline); ft.setFromValue(1.0); ft.setToValue(0.0);
         ParallelTransition pt = new ParallelTransition(sweep, ft); pt.setOnFinished(e -> scanline.setVisible(false)); pt.play();
     }
-
-    public void playPulseEffect() {
-        ScaleTransition st = new ScaleTransition(Duration.millis(120), root); st.setFromX(1.0); st.setFromY(1.0); st.setToX(1.015); st.setToY(1.015); st.setAutoReverse(true); st.setCycleCount(2); st.play();
-    }
-
-    public void shakeScreen() {
-        TranslateTransition tt = new TranslateTransition(Duration.millis(40), root); tt.setFromX(0f); tt.setByX(5f); tt.setCycleCount(4); tt.setAutoReverse(true); tt.playFromStart();
-    }
-
-    public void playFlashEffect(Color c, double durationMillis) {
-        flashOverlay.setFill(c); FadeTransition ft = new FadeTransition(Duration.millis(durationMillis), flashOverlay); ft.setFromValue(0.25); ft.setToValue(0.0); ft.play();
-    }
+    public void playPulseEffect() { ScaleTransition st = new ScaleTransition(Duration.millis(120), root); st.setFromX(1.0); st.setFromY(1.0); st.setToX(1.015); st.setToY(1.015); st.setAutoReverse(true); st.setCycleCount(2); st.play(); }
+    public void shakeScreen() { TranslateTransition tt = new TranslateTransition(Duration.millis(40), root); tt.setFromX(0f); tt.setByX(5f); tt.setCycleCount(4); tt.setAutoReverse(true); tt.playFromStart(); }
+    public void playFlashEffect(Color c, double durationMillis) { flashOverlay.setFill(c); FadeTransition ft = new FadeTransition(Duration.millis(durationMillis), flashOverlay); ft.setFromValue(0.25); ft.setToValue(0.0); ft.play(); }
 
     private void setupNeonButtonAnimation(Button btn, String primaryColor, String glowBgColor) {
         btn.setStyle("-fx-background-color: black; -fx-text-fill: " + primaryColor + "; -fx-border-color: " + primaryColor + "; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-radius: 5; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;");
@@ -199,41 +263,20 @@ public class UIManager {
         SequentialTransition seq = new SequentialTransition(emerge, hold, submerge); seq.setOnFinished(e -> errorImg.setVisible(false)); seq.play();
     }
 
-    public void updateTraceUI(double traceLevel) {
-        if (traceLevel > 0) {
-            traceWarningLabel.setVisible(true);
-            int bars = (int)(Math.min(1.0, traceLevel) * 20);
-            int dots = 20 - bars;
-            traceWarningLabel.setText(String.format("⚠ 警告：反追蹤系統鎖定中 [%s%s] %d%% ⚠", "|".repeat(bars), ".".repeat(dots), (int)(traceLevel*100)));
-            traceWarningLabel.setEffect(new DropShadow(10, Color.RED));
-        } else {
-            traceWarningLabel.setVisible(false);
-        }
-    }
+    public void updateTraceUI(double traceLevel) { if (traceLevel > 0) { traceWarningLabel.setVisible(true); int bars = (int)(Math.min(1.0, traceLevel) * 20); int dots = 20 - bars; traceWarningLabel.setText(String.format("⚠ 警告：反追蹤系統鎖定中 [%s%s] %d%% ⚠", "|".repeat(bars), ".".repeat(dots), (int)(traceLevel*100))); traceWarningLabel.setEffect(new DropShadow(10, Color.RED)); } else { traceWarningLabel.setVisible(false); } }
 
     public void updateFirewallUI() {
         int bars = (int) Math.max(0, Math.min(20, engine.firewallProgress * 20));
         int dots = 20 - bars;
-        String heatWarning = engine.isOverheated ? " [LOCKED]" : String.format(" [HEAT: %d%%]", (int)(engine.coreHeat * 100));
-        firewallBarDisplay.setText("[" + "|".repeat(bars) + ".".repeat(dots) + "]" + heatWarning);
-        if (engine.isOverheated) {
-            firewallBarDisplay.setTextFill(Color.RED);
-            firewallBarDisplay.setEffect(new DropShadow(15, Color.RED));
-        } else {
-            firewallBarDisplay.setTextFill(Color.web("#33CCFF"));
-            firewallBarDisplay.setEffect(neonGlowCyan);
-        }
+        int percent = (int) Math.round(engine.firewallProgress * 100);
+        String heatWarning = engine.isOverheated ? " [LOCKED]" : "";
+        firewallBarDisplay.setText("[" + "|".repeat(bars) + ".".repeat(dots) + "] " + percent + "%" + heatWarning);
+        if (engine.isOverheated) { firewallBarDisplay.setTextFill(Color.RED); firewallBarDisplay.setEffect(new DropShadow(15, Color.RED)); }
+        else { firewallBarDisplay.setTextFill(Color.web("#33CCFF")); firewallBarDisplay.setEffect(neonGlowCyan); }
     }
 
-    public void playFirewallSpacePopEffect() {
-        firewallBarDisplay.setTextFill(Color.WHITE); ScaleTransition st = new ScaleTransition(Duration.millis(60), firewallBarDisplay); st.setFromX(1.06); st.setFromY(1.06); st.setToX(1.0); st.setToY(1.0); st.setOnFinished(e -> { firewallBarDisplay.setTextFill(Color.web("#33CCFF")); }); st.play();
-    }
-
-    private ImageView loadEmergeErrorImage(String fileName) {
-        ImageView iv = new ImageView();
-        try { iv.setImage(new Image(getClass().getResource("/" + fileName).toExternalForm())); iv.setFitWidth(800); iv.setFitHeight(600); iv.setPreserveRatio(false); } catch (Exception e) {}
-        iv.setOpacity(0.0); iv.setScaleX(0.0); iv.setScaleY(0.0); iv.setVisible(false); iv.setMouseTransparent(true); return iv;
-    }
+    public void playFirewallSpacePopEffect() { firewallBarDisplay.setTextFill(Color.WHITE); ScaleTransition st = new ScaleTransition(Duration.millis(60), firewallBarDisplay); st.setFromX(1.06); st.setFromY(1.06); st.setToX(1.0); st.setToY(1.0); st.setOnFinished(e -> { firewallBarDisplay.setTextFill(Color.web("#33CCFF")); }); st.play(); }
+    private ImageView loadEmergeErrorImage(String fileName) { ImageView iv = new ImageView(); try { iv.setImage(new Image(getClass().getResource("/" + fileName).toExternalForm())); iv.setFitWidth(800); iv.setFitHeight(600); iv.setPreserveRatio(false); } catch (Exception e) {} iv.setOpacity(0.0); iv.setScaleX(0.0); iv.setScaleY(0.0); iv.setVisible(false); iv.setMouseTransparent(true); return iv; }
 
     private void buildEventLayers() {
         firewallLayer = new StackPane(); firewallLayer.setStyle("-fx-background-color: rgba(0, 40, 120, 0.55);"); VBox fwBox = new VBox(10); fwBox.setAlignment(Pos.CENTER); Label fwTitle = new Label("- FIREWALL BREAK ATTEMPT -"); fwTitle.setTextFill(Color.CYAN); fwTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
@@ -246,113 +289,41 @@ public class UIManager {
 
         decryptLayer = new StackPane(); decryptLayer.setStyle("-fx-background-color: rgba(0, 40, 0, 0.9);"); VBox decBox = new VBox(15); decBox.setAlignment(Pos.CENTER); Label decTitle = new Label("??? ENCRYPTED NODE ???"); decTitle.setTextFill(Color.LIME); decTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 35)); decryptTargetDisplay = new Label("MEMORIZE THIS"); decryptTargetDisplay.setTextFill(Color.WHITE); decryptTargetDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 50)); decryptTargetDisplay.setEffect(neonGlowGreen); decryptInputDisplay = new Label("> _"); decryptInputDisplay.setTextFill(Color.CYAN); decryptInputDisplay.setFont(Font.font("Consolas", 40)); decryptTimeDisplay = new Label("Time left: 4.0s"); decryptTimeDisplay.setTextFill(Color.WHITE); decBox.getChildren().addAll(decTitle, decryptTargetDisplay, decryptInputDisplay, decryptTimeDisplay); decryptLayer.getChildren().add(decBox); decryptLayer.setVisible(false);
 
-        bugCatchLayer = new StackPane();
-        bugCatchLayer.setStyle("-fx-background-color: rgba(30, 0, 0, 0.85);");
-        bugCatchPane = new AnchorPane();
-        bugCatchPane.setPrefSize(800, 600);
-
-        VBox bugInfoBox = new VBox(10);
-        bugInfoBox.setAlignment(Pos.TOP_CENTER);
-        Label bugTitle = new Label("- INVASIVE SWARM DETECTED -");
-        bugTitle.setTextFill(Color.RED);
-        bugTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 30));
-        bugTitle.setEffect(new DropShadow(10, Color.RED));
-
-        bugScoreLabel = new Label("TARGET BUGS: 0 / 5");
-        bugScoreLabel.setTextFill(Color.LIME);
-        bugScoreLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 24));
-        bugScoreLabel.setEffect(neonGlowGreen);
-
-        bugTimeLabel = new Label("Time left: 15.0s");
-        bugTimeLabel.setTextFill(Color.WHITE);
-        bugTimeLabel.setFont(Font.font("Consolas", 24));
-
-        bugInfoBox.getChildren().addAll(bugTitle, bugScoreLabel, bugTimeLabel);
-        bugCatchLayer.getChildren().addAll(bugInfoBox, bugCatchPane);
-        StackPane.setAlignment(bugInfoBox, Pos.TOP_CENTER);
-        bugInfoBox.setTranslateY(80);
-        bugCatchLayer.setVisible(false);
+        bugCatchLayer = new StackPane(); bugCatchLayer.setStyle("-fx-background-color: rgba(30, 0, 0, 0.85);"); bugCatchPane = new AnchorPane(); bugCatchPane.setPrefSize(800, 600);
+        VBox bugInfoBox = new VBox(10); bugInfoBox.setAlignment(Pos.TOP_CENTER);
+        Label bugTitle = new Label("- INVASIVE SWARM DETECTED -"); bugTitle.setTextFill(Color.RED); bugTitle.setFont(Font.font("Consolas", FontWeight.BOLD, 30)); bugTitle.setEffect(new DropShadow(10, Color.RED));
+        bugScoreLabel = new Label("TARGET BUGS: 0 / 5"); bugScoreLabel.setTextFill(Color.LIME); bugScoreLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 24)); bugScoreLabel.setEffect(neonGlowGreen);
+        bugTimeLabel = new Label("Time left: 15.0s"); bugTimeLabel.setTextFill(Color.WHITE); bugTimeLabel.setFont(Font.font("Consolas", 24));
+        bugInfoBox.getChildren().addAll(bugTitle, bugScoreLabel, bugTimeLabel); bugCatchLayer.getChildren().addAll(bugInfoBox, bugCatchPane);
+        StackPane.setAlignment(bugInfoBox, Pos.TOP_CENTER); bugInfoBox.setTranslateY(80); bugCatchLayer.setVisible(false);
     }
 
     public void spawnBugsForEvent() {
         bugCatchPane.getChildren().clear();
         if (targetBugImg == null || obstacleBugImgs == null) return;
-
-        double maxX = 650;
-        double maxY = 400;
-
-        ImageView targetView = new ImageView(targetBugImg);
-        targetView.setFitWidth(80); targetView.setFitHeight(80);
-        targetView.setLayoutX(50 + engine.random.nextDouble() * maxX);
-        targetView.setLayoutY(150 + engine.random.nextDouble() * maxY);
-        targetView.setStyle("-fx-cursor: hand;");
-
-        double targetScale = 0.5 + engine.random.nextDouble() * 0.5;
-        targetView.setScaleX(targetScale);
-        targetView.setScaleY(targetScale);
-
-        TranslateTransition ttTarget = new TranslateTransition(Duration.millis(600 + engine.random.nextInt(500)), targetView);
-        ttTarget.setByX((engine.random.nextDouble() - 0.5) * 200);
-        ttTarget.setByY((engine.random.nextDouble() - 0.5) * 200);
-        ttTarget.setAutoReverse(true);
-        ttTarget.setCycleCount(Animation.INDEFINITE);
-        ttTarget.play();
-
+        double maxX = 650; double maxY = 400;
+        ImageView targetView = new ImageView(targetBugImg); targetView.setFitWidth(80); targetView.setFitHeight(80); targetView.setLayoutX(50 + engine.random.nextDouble() * maxX); targetView.setLayoutY(150 + engine.random.nextDouble() * maxY); targetView.setStyle("-fx-cursor: hand;");
+        double targetScale = 0.5 + engine.random.nextDouble() * 0.5; targetView.setScaleX(targetScale); targetView.setScaleY(targetScale);
+        TranslateTransition ttTarget = new TranslateTransition(Duration.millis(600 + engine.random.nextInt(500)), targetView); ttTarget.setByX((engine.random.nextDouble() - 0.5) * 200); ttTarget.setByY((engine.random.nextDouble() - 0.5) * 200); ttTarget.setAutoReverse(true); ttTarget.setCycleCount(Animation.INDEFINITE); ttTarget.play();
         targetView.setOnMouseClicked(e -> {
-            engine.bugsCaught++;
-            app.playGunshotSound();
-            bugCatchPane.getChildren().remove(targetView);
-            updateBugScoreUI();
-            if (engine.bugsCaught >= 5) {
-                engine.isBugCatchFight = false;
-                bugCatchLayer.setVisible(false);
-                typeWriterUpdate(">>> BUG SWARM CLEARED.");
-                engine.currentSegment++;
-            }
+            engine.bugsCaught++; app.playGunshotSound(); bugCatchPane.getChildren().remove(targetView); updateBugScoreUI();
+            if (engine.bugsCaught >= 5) { engine.isBugCatchFight = false; bugCatchLayer.setVisible(false); typeWriterUpdate(">>> BUG SWARM CLEARED."); engine.currentSegment++; }
             e.consume();
         });
 
-        int baseObs = engine.random.nextInt(3) + 1;
-        int scaleObs = p.currentLevel / 4;
-        int obsCount = baseObs + scaleObs;
-
+        int obsCount = (engine.random.nextInt(3) + 1) + (p.currentLevel / 4);
         List<ImageView> obsList = new ArrayList<>();
         for (int i = 0; i < obsCount; i++) {
-            ImageView obsView = new ImageView(obstacleBugImgs[engine.random.nextInt(obstacleBugImgs.length)]);
-            obsView.setFitWidth(80); obsView.setFitHeight(80);
-            obsView.setLayoutX(50 + engine.random.nextDouble() * maxX);
-            obsView.setLayoutY(150 + engine.random.nextDouble() * maxY);
-            obsView.setStyle("-fx-cursor: hand;");
-
-            double obsScale = 0.6 + engine.random.nextDouble() * 0.6;
-            obsView.setScaleX(obsScale);
-            obsView.setScaleY(obsScale);
-
-            TranslateTransition ttObs = new TranslateTransition(Duration.millis(600 + engine.random.nextInt(500)), obsView);
-            ttObs.setByX((engine.random.nextDouble() - 0.5) * 250);
-            ttObs.setByY((engine.random.nextDouble() - 0.5) * 250);
-            ttObs.setAutoReverse(true);
-            ttObs.setCycleCount(Animation.INDEFINITE);
-            ttObs.play();
-
-            obsView.setOnMouseClicked(e -> {
-                if (engine.bugsCaught > 0) engine.bugsCaught--;
-                updateBugScoreUI();
-                app.playPictureHitSound();
-                bugCatchPane.getChildren().remove(obsView);
-                triggerErrorEffect(errorImage2, 2);
-                e.consume();
-            });
+            ImageView obsView = new ImageView(obstacleBugImgs[engine.random.nextInt(obstacleBugImgs.length)]); obsView.setFitWidth(80); obsView.setFitHeight(80); obsView.setLayoutX(50 + engine.random.nextDouble() * maxX); obsView.setLayoutY(150 + engine.random.nextDouble() * maxY); obsView.setStyle("-fx-cursor: hand;");
+            double obsScale = 0.6 + engine.random.nextDouble() * 0.6; obsView.setScaleX(obsScale); obsView.setScaleY(obsScale);
+            TranslateTransition ttObs = new TranslateTransition(Duration.millis(600 + engine.random.nextInt(500)), obsView); ttObs.setByX((engine.random.nextDouble() - 0.5) * 250); ttObs.setByY((engine.random.nextDouble() - 0.5) * 250); ttObs.setAutoReverse(true); ttObs.setCycleCount(Animation.INDEFINITE); ttObs.play();
+            obsView.setOnMouseClicked(e -> { if (engine.bugsCaught > 0) engine.bugsCaught--; updateBugScoreUI(); app.playPictureHitSound(); bugCatchPane.getChildren().remove(obsView); triggerErrorEffect(errorImage2, 2); e.consume(); });
             obsList.add(obsView);
         }
-
-        bugCatchPane.getChildren().addAll(obsList);
-        bugCatchPane.getChildren().add(targetView);
+        bugCatchPane.getChildren().addAll(obsList); bugCatchPane.getChildren().add(targetView);
     }
 
-    public void updateBugScoreUI() {
-        bugScoreLabel.setText("TARGET BUGS: " + engine.bugsCaught + " / 5");
-    }
+    public void updateBugScoreUI() { bugScoreLabel.setText("TARGET BUGS: " + engine.bugsCaught + " / 5"); }
 
     private void buildRouteLayer() {
         routeLayer = new StackPane(); routeLayer.setStyle("-fx-background-color: rgba(10, 30, 10, 0.95);"); VBox routeBox = new VBox(20); routeBox.setAlignment(Pos.CENTER); Label title = new Label(">>> SELECT NEXT NODE <<<"); title.setTextFill(Color.LIME); title.setFont(Font.font("Consolas", 35)); title.setEffect(neonGlowGreen); HBox btnBox = new HBox(30); btnBox.setAlignment(Pos.CENTER);
@@ -362,60 +333,21 @@ public class UIManager {
         btnBox.getChildren().addAll(btnNormal, btnHard); routeBox.getChildren().addAll(title, btnBox); routeLayer.getChildren().add(routeBox); routeLayer.setVisible(false);
     }
 
-    // === 修正與優化：加入商店說明 Tooltip 標籤與動態綁定機制 ===
     private void buildShopLayer() {
         shopLayer = new StackPane(); shopLayer.setStyle("-fx-background-color: #050505;"); VBox shopBox = new VBox(10); shopBox.setAlignment(Pos.CENTER); Label shopTitle = new Label("--- BLACK MARKET ---"); shopTitle.setTextFill(Color.LIME); shopTitle.setFont(Font.font("Consolas", 40)); shopTitle.setEffect(neonGlowGreen); coinDisplay = new Label("DarkCoins: 0 ¢"); coinDisplay.setTextFill(Color.GOLD); coinDisplay.setFont(Font.font("Consolas", 25));
+        shopDescLabel = new Label(">>> 游標懸停以查看組件說明 <<<"); shopDescLabel.setTextFill(Color.LIGHTGRAY); shopDescLabel.setFont(Font.font("Consolas", 14)); shopDescLabel.setStyle("-fx-background-color: rgba(20, 20, 30, 0.8); -fx-padding: 10; -fx-border-color: #00FFCC; -fx-border-width: 1; -fx-max-width: 450; -fx-wrap-text: true;"); shopDescLabel.setAlignment(Pos.CENTER); shopDescLabel.setTextAlignment(TextAlignment.CENTER); shopDescLabel.setMinHeight(60);
 
-        // 初始化說明欄標籤
-        shopDescLabel = new Label(">>> 游標懸停以查看組件說明 <<<");
-        shopDescLabel.setTextFill(Color.LIGHTGRAY);
-        shopDescLabel.setFont(Font.font("Consolas", 14));
-        shopDescLabel.setStyle("-fx-background-color: rgba(20, 20, 30, 0.8); -fx-padding: 10; -fx-border-color: #00FFCC; -fx-border-width: 1; -fx-max-width: 450; -fx-wrap-text: true;");
-        shopDescLabel.setAlignment(Pos.CENTER);
-        shopDescLabel.setTextAlignment(TextAlignment.CENTER);
-        shopDescLabel.setMinHeight(60);
-
-        btnShopClick = createShopButton("", 0);
-        btnShopClick.setOnAction(e -> { int cost = 100 + p.upgClick * 150; if(p.buy(cost)) { p.upgClick++; updateShopUI(); } });
-        addShopHoverDesc(btnShopClick, "「重磅封包」\n增加每次敲擊空白鍵對防火牆造成的破壞力。\n(適合喜歡重擊突破的駭客)");
-
-        btnShopSpeed = createShopButton("", 0);
-        btnShopSpeed.setOnAction(e -> { int cost = 150 + p.upgSpeed * 200; if(p.buy(cost)) { p.upgSpeed++; updateShopUI(); } });
-        addShopHoverDesc(btnShopSpeed, "「注入加速」\n提升一般節點的自動注入速度，減少滑鼠長按時間。\n(防追蹤必備)");
-
-        btnShopCoolant = createShopButton("", 0);
-        btnShopCoolant.setOnAction(e -> { int cost = 120 + p.upgCoolant * 180; if(p.buy(cost)) { p.upgCoolant++; updateShopUI(); } });
-        addShopHoverDesc(btnShopCoolant, "「散熱組件」\n降低敲擊空白鍵產生的熱量，延緩過熱鎖定。\n(適合手速極快的駭客)");
-
-        btnShopStealth = createShopButton("", 0);
-        btnShopStealth.setOnAction(e -> { int cost = 120 + p.upgStealth * 180; if(p.buy(cost)) { p.upgStealth++; updateShopUI(); } });
-        addShopHoverDesc(btnShopStealth, "「隱蔽路由」\n減緩在一般節點被反追蹤系統鎖定的速度。\n(增加隱蔽容錯率)");
-
-        btnShopEmp = createShopButton("", 0);
-        btnShopEmp.setOnAction(e -> { int cost = 200 + p.empCharges * 150; if(p.buy(cost)) { p.empCharges++; updateShopUI(); } });
-        addShopHoverDesc(btnShopEmp, "「EMP 脈衝彈」\n消耗品。在防火牆戰鬥中按 [1] 瞬間炸毀大量防禦。");
-
-        btnShopSlow = createShopButton("", 0);
-        btnShopSlow.setOnAction(e -> { int cost = 250 + p.slowCharges * 200; if(p.buy(cost)) { p.slowCharges++; updateShopUI(); } });
-        addShopHoverDesc(btnShopSlow, "「超頻沙漏」\n消耗品。在限時戰鬥中按 [2] 延長駭入時間。");
-
+        btnShopClick = createShopButton("", 0); btnShopClick.setOnAction(e -> { int cost = 100 + p.upgClick * 150; if(p.buy(cost)) { p.upgClick++; updateShopUI(); } }); addShopHoverDesc(btnShopClick, "「重磅封包」\n增加每次敲擊空白鍵對防火牆造成的破壞力。");
+        btnShopSpeed = createShopButton("", 0); btnShopSpeed.setOnAction(e -> { int cost = 150 + p.upgSpeed * 200; if(p.buy(cost)) { p.upgSpeed++; updateShopUI(); } }); addShopHoverDesc(btnShopSpeed, "「注入加速」\n提升一般節點的自動注入速度，減少滑鼠長按時間。");
+        btnShopCoolant = createShopButton("", 0); btnShopCoolant.setOnAction(e -> { int cost = 120 + p.upgCoolant * 180; if(p.buy(cost)) { p.upgCoolant++; updateShopUI(); } }); addShopHoverDesc(btnShopCoolant, "「散熱組件」\n降低敲擊空白鍵產生的熱量，延緩過熱鎖定。");
+        btnShopStealth = createShopButton("", 0); btnShopStealth.setOnAction(e -> { int cost = 120 + p.upgStealth * 180; if(p.buy(cost)) { p.upgStealth++; updateShopUI(); } }); addShopHoverDesc(btnShopStealth, "「隱蔽路由」\n減緩在一般節點被反追蹤系統鎖定的速度。");
+        btnShopEmp = createShopButton("", 0); btnShopEmp.setOnAction(e -> { int cost = 200 + p.empCharges * 150; if(p.buy(cost)) { p.empCharges++; updateShopUI(); } }); addShopHoverDesc(btnShopEmp, "「EMP 脈衝彈」\n消耗品。在防火牆戰鬥中按 [1] 瞬間炸毀大量防禦。");
+        btnShopSlow = createShopButton("", 0); btnShopSlow.setOnAction(e -> { int cost = 250 + p.slowCharges * 200; if(p.buy(cost)) { p.slowCharges++; updateShopUI(); } }); addShopHoverDesc(btnShopSlow, "「超頻沙漏」\n消耗品。在限時戰鬥中按 [2] 延長駭入時間。");
         Button btnNext = createStyledButton(">>> INJECT PAYLOAD <<<"); btnNext.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; shopLayer.setVisible(false); gameLayer.setVisible(true); engine.resetEvents(); app.checkBossLevel(); });
-
         shopBox.getChildren().addAll(shopTitle, coinDisplay, btnShopClick, btnShopSpeed, btnShopCoolant, btnShopStealth, btnShopEmp, btnShopSlow, shopDescLabel, btnNext); shopLayer.getChildren().add(shopBox); shopLayer.setVisible(false);
     }
 
-    // 專門處理滑鼠懸停顯示說明的 Helper 方法
-    private void addShopHoverDesc(Button btn, String desc) {
-        btn.hoverProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal) {
-                shopDescLabel.setText(desc);
-                shopDescLabel.setTextFill(Color.WHITE);
-            } else {
-                shopDescLabel.setText(">>> 游標懸停以查看組件說明 <<<");
-                shopDescLabel.setTextFill(Color.LIGHTGRAY);
-            }
-        });
-    }
+    private void addShopHoverDesc(Button btn, String desc) { btn.hoverProperty().addListener((obs, oldVal, newVal) -> { if (newVal) { shopDescLabel.setText(desc); shopDescLabel.setTextFill(Color.WHITE); } else { shopDescLabel.setText(">>> 游標懸停以查看組件說明 <<<"); shopDescLabel.setTextFill(Color.LIGHTGRAY); } }); }
 
     private void buildTalentLayerStructure() {
         talentLayer = new StackPane(); talentLayer.setStyle("-fx-background-color: #0d0214;"); treeGroup = new Group(); StackPane treePane = new StackPane(treeGroup); treePane.setAlignment(Pos.CENTER); treePane.setPrefSize(700, 320); descBox = new VBox(5); descBox.setAlignment(Pos.CENTER); descBox.setStyle("-fx-background-color: #160826; -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 15; -fx-max-width: 550;"); talentNameLabel = new Label(">>> 點擊任意節點解密核心天賦 <<<"); talentNameLabel.setTextFill(Color.CYAN); talentNameLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 16)); talentEffectLabel = new Label("選取節點以加載組件加成數據。"); talentEffectLabel.setTextFill(Color.LIGHTGRAY); talentEffectLabel.setFont(Font.font("Consolas", 14)); talentCostLabel = new Label(""); talentCostLabel.setTextFill(Color.GOLD); talentCostLabel.setFont(Font.font("Consolas", 14));
@@ -436,58 +368,33 @@ public class UIManager {
         }
     }
 
-    public void updateComboDisplay(double multiplier) {
-        comboDisplay.setText(String.format("COMBO: x%.1f", multiplier));
-        if (multiplier >= 3.0) { comboDisplay.setTextFill(Color.web("#FF007F")); comboDisplay.setEffect(neonGlowPink); uiBorder.setStyle(engine.random.nextInt(3) == 0 ? "-fx-text-fill: #FF007F; -fx-effect: dropshadow(three-pass-box, #FF007F, 10, 0, 0, 0);" : "-fx-text-fill: rgb(0, 255, 204); -fx-effect: none;"); } else if (multiplier >= 2.0) { comboDisplay.setTextFill(Color.ORANGE); comboDisplay.setEffect(new DropShadow(10, Color.ORANGE)); uiBorder.setStyle("-fx-text-fill: orange;"); } else { comboDisplay.setTextFill(Color.YELLOW); comboDisplay.setEffect(null); uiBorder.setStyle("-fx-text-fill: rgba(0, 255, 204, 0.5);"); }
-    }
-
+    public void updateComboDisplay(double multiplier) { comboDisplay.setText(String.format("COMBO: x%.1f", multiplier)); if (multiplier >= 3.0) { comboDisplay.setTextFill(Color.web("#FF007F")); comboDisplay.setEffect(neonGlowPink); uiBorder.setStyle(engine.random.nextInt(3) == 0 ? "-fx-text-fill: #FF007F; -fx-effect: dropshadow(three-pass-box, #FF007F, 10, 0, 0, 0);" : "-fx-text-fill: rgb(0, 255, 204); -fx-effect: none;"); } else if (multiplier >= 2.0) { comboDisplay.setTextFill(Color.ORANGE); comboDisplay.setEffect(new DropShadow(10, Color.ORANGE)); uiBorder.setStyle("-fx-text-fill: orange;"); } else { comboDisplay.setTextFill(Color.YELLOW); comboDisplay.setEffect(null); uiBorder.setStyle("-fx-text-fill: rgba(0, 255, 204, 0.5);"); } }
     public void playComboHitEffect(double multiplier) { if (multiplier < 2.0) return; double intensity = (multiplier >= 3.0) ? 5.0 : 2.5; TranslateTransition tt = new TranslateTransition(Duration.millis(30), gameLayer); tt.setFromX((engine.random.nextDouble() - 0.5) * intensity); tt.setFromY((engine.random.nextDouble() - 0.5) * intensity); tt.setToX(0f); tt.setToY(0f); tt.playFromStart(); }
     public void playDescFadeIn() { FadeTransition ft = new FadeTransition(Duration.millis(250), descBox); ft.setFromValue(0.2); ft.setToValue(1.0); ft.play(); }
-
-    public void updateGlitchDisplay() {
-        if (engine.activeGlitch == HackEngine.GlitchType.NONE) { glitchWarningLabel.setText(" [系統狀態：傳輸環境安全]"); glitchWarningLabel.setTextFill(Color.LIME); glitchWarningLabel.setEffect(null); } else if (engine.activeGlitch == HackEngine.GlitchType.NETWORK_LAG) { glitchWarningLabel.setText("⚠ 環境詛咒：[NETWORK_LAG] 延遲嚴重 ⚠"); glitchWarningLabel.setTextFill(Color.ORANGE); glitchWarningLabel.setEffect(new DropShadow(8, Color.ORANGE)); } else if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { glitchWarningLabel.setText("⚠ 環境詛咒：[VISUAL_DISTORTION] 視覺污染 ⚠"); glitchWarningLabel.setTextFill(Color.web("#FF007F")); glitchWarningLabel.setEffect(neonGlowPink); } else if (engine.activeGlitch == HackEngine.GlitchType.CORE_OVERLOAD) { glitchWarningLabel.setText("⚠ 環境詛咒：[CORE_OVERLOAD] 核心超載 ⚠"); glitchWarningLabel.setTextFill(Color.RED); glitchWarningLabel.setEffect(new DropShadow(12, Color.RED)); }
-    }
-
-    public void updateShopUI() {
-        coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢");
-        skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges);
-
-        btnShopClick.setText(String.format("重磅封包 (Lv.%d) [Cost: %d¢]", p.upgClick, 100 + p.upgClick * 150));
-        btnShopSpeed.setText(String.format("注入加速 (Lv.%d) [Cost: %d¢]", p.upgSpeed, 150 + p.upgSpeed * 200));
-        btnShopCoolant.setText(String.format("散熱組件 (Lv.%d) [Cost: %d¢]", p.upgCoolant, 120 + p.upgCoolant * 180));
-        btnShopStealth.setText(String.format("隱蔽路由 (Lv.%d) [Cost: %d¢]", p.upgStealth, 120 + p.upgStealth * 180));
-        btnShopEmp.setText(String.format("EMP 脈衝彈 [Cost: %d¢]", 200 + p.empCharges * 150));
-        btnShopSlow.setText(String.format("超頻沙漏 [Cost: %d¢]", 250 + p.slowCharges * 200));
-    }
-
+    public void updateGlitchDisplay() { if (engine.activeGlitch == HackEngine.GlitchType.NONE) { glitchWarningLabel.setText(" [系統狀態：傳輸環境安全]"); glitchWarningLabel.setTextFill(Color.LIME); glitchWarningLabel.setEffect(null); } else if (engine.activeGlitch == HackEngine.GlitchType.NETWORK_LAG) { glitchWarningLabel.setText("⚠ 環境詛咒：[NETWORK_LAG] 延遲嚴重 ⚠"); glitchWarningLabel.setTextFill(Color.ORANGE); glitchWarningLabel.setEffect(new DropShadow(8, Color.ORANGE)); } else if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { glitchWarningLabel.setText("⚠ 環境詛咒：[VISUAL_DISTORTION] 視覺污染 ⚠"); glitchWarningLabel.setTextFill(Color.web("#FF007F")); glitchWarningLabel.setEffect(neonGlowPink); } else if (engine.activeGlitch == HackEngine.GlitchType.CORE_OVERLOAD) { glitchWarningLabel.setText("⚠ 環境詛咒：[CORE_OVERLOAD] 核心超載 ⚠"); glitchWarningLabel.setTextFill(Color.RED); glitchWarningLabel.setEffect(new DropShadow(12, Color.RED)); } }
+    public void updateShopUI() { coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢"); skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges); btnShopClick.setText(String.format("重磅封包 (Lv.%d) [Cost: %d¢]", p.upgClick, 100 + p.upgClick * 150)); btnShopSpeed.setText(String.format("注入加速 (Lv.%d) [Cost: %d¢]", p.upgSpeed, 150 + p.upgSpeed * 200)); btnShopCoolant.setText(String.format("散熱組件 (Lv.%d) [Cost: %d¢]", p.upgCoolant, 120 + p.upgCoolant * 180)); btnShopStealth.setText(String.format("隱蔽路由 (Lv.%d) [Cost: %d¢]", p.upgStealth, 120 + p.upgStealth * 180)); btnShopEmp.setText(String.format("EMP 脈衝彈 [Cost: %d¢]", 200 + p.empCharges * 150)); btnShopSlow.setText(String.format("超頻沙漏 [Cost: %d¢]", 250 + p.slowCharges * 200)); }
     public void updateTalentUI() { talentCoinDisplay.setText("LEGACY COINS: " + p.legacyCoins + " ¢"); highScoreDisplay.setText("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢"); drawTalentTreeNodes(); }
 
     public void updateInterceptUI() {
         interceptTargetDisplay.getChildren().clear(); String seq = engine.targetSequence;
         for (int i = 0; i < seq.length(); i++) {
             Label letterLabel = new Label(String.valueOf(seq.charAt(i))); letterLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 42));
-            if (i < engine.sequenceIndex) { letterLabel.setTextFill(Color.web("#00FFCC")); letterLabel.setStyle("-fx-effect: dropshadow(three-pass-box, #00FFCC, 15, 0.6, 0, 0);"); if (i == engine.sequenceIndex - 1) { letterLabel.setScaleX(1.5); letterLabel.setScaleY(1.5); ScaleTransition st = new ScaleTransition(Duration.millis(120), letterLabel); st.setToX(1.0); st.setToY(1.0); st.play(); } } else if (i == engine.sequenceIndex) { letterLabel.setTextFill(Color.WHITE); letterLabel.setStyle("-fx-background-color: rgba(0, 255, 204, 0.25); -fx-border-color: #00FFCC; -fx-border-width: 2; -fx-padding: 0 8 0 8; -fx-border-radius: 4; -fx-background-radius: 4;"); letterLabel.setEffect(neonGlowCyan); } else { letterLabel.setTextFill(Color.web("#444444")); letterLabel.setStyle("-fx-effect: none;"); }
+            if (i < engine.sequenceIndex) { letterLabel.setTextFill(Color.web("#00FFCC")); letterLabel.setStyle("-fx-effect: dropshadow(three-pass-box, #00FFCC, 15, 0.6, 0, 0);"); if (i == engine.sequenceIndex - 1) { letterLabel.setScaleX(1.5); letterLabel.setScaleY(1.5); ScaleTransition st = new ScaleTransition(Duration.millis(120), letterLabel); st.setToX(1.0); st.setToY(1.0); st.play(); } }
+            else if (i == engine.sequenceIndex) { letterLabel.setTextFill(Color.WHITE); letterLabel.setStyle("-fx-background-color: rgba(0, 255, 204, 0.25); -fx-border-color: #00FFCC; -fx-border-width: 2; -fx-padding: 0 8 0 8; -fx-border-radius: 4; -fx-background-radius: 4;"); letterLabel.setEffect(neonGlowCyan); }
+            else { letterLabel.setTextFill(Color.web("#444444")); letterLabel.setStyle("-fx-effect: none;"); }
             interceptTargetDisplay.getChildren().add(letterLabel);
         }
     }
-
-    public void updateDecryptUI() {
-        decryptInputDisplay.setText("> " + engine.decryptInput + "_"); decryptInputDisplay.setTextFill(Color.web("#00FFCC")); decryptInputDisplay.setStyle("-fx-effect: dropshadow(three-pass-box, #00FFCC, 12, 0.4, 0, 0);");
-        ScaleTransition st = new ScaleTransition(Duration.millis(100), decryptInputDisplay); st.setFromX(1.1); st.setFromY(1.1); st.setToX(1.0); st.setToY(1.0); st.play();
-    }
-
-    public void showGameOverStats(String reason, int level, int legacy, double maxCombo, int apm, double accuracy, String title) {
-        gameOverReasonLabel.setText(reason);
-        String stats = String.format("REACHED LAYER: %d\nMAX COMBO: x%.1f\nHACKING APM: %d\nACCURACY: %.1f%%\n\nCYBER TITLE EARNED:\n[ %s ]\n\nPERMANENT LEGACY COINS EARNED: +%d ¢", level, maxCombo, apm, accuracy, title, legacy);
-        gameOverStatsLabel.setText(stats); gameOverLayer.setVisible(true); firewallLayer.setVisible(false); interceptLayer.setVisible(false); decryptLayer.setVisible(false); bugCatchLayer.setVisible(false);
-    }
-
+    public void updateDecryptUI() { decryptInputDisplay.setText("> " + engine.decryptInput + "_"); decryptInputDisplay.setTextFill(Color.web("#00FFCC")); decryptInputDisplay.setStyle("-fx-effect: dropshadow(three-pass-box, #00FFCC, 12, 0.4, 0, 0);"); ScaleTransition st = new ScaleTransition(Duration.millis(100), decryptInputDisplay); st.setFromX(1.1); st.setFromY(1.1); st.setToX(1.0); st.setToY(1.0); st.play(); }
+    public void showGameOverStats(String reason, int level, int legacy, double maxCombo, int apm, double accuracy, String title) { gameOverReasonLabel.setText(reason); String stats = String.format("REACHED LAYER: %d\nMAX COMBO: x%.1f\nHACKING APM: %d\nACCURACY: %.1f%%\n\nCYBER TITLE EARNED:\n[ %s ]\n\nPERMANENT LEGACY COINS EARNED: +%d ¢", level, maxCombo, apm, accuracy, title, legacy); gameOverStatsLabel.setText(stats); gameOverLayer.setVisible(true); firewallLayer.setVisible(false); interceptLayer.setVisible(false); decryptLayer.setVisible(false); bugCatchLayer.setVisible(false); }
     private boolean unlocked(int id, int level) { if (id == 1) return p.talentStartEMP >= level; if (id == 2) return p.talentWeakFW >= level; if (id == 3) return p.talentFlashTime >= level; return false; }
     private boolean isNextAvailable(int id, int level) { if (id == 1) return p.talentStartEMP == level - 1; if (id == 2) return p.talentWeakFW == level - 1; if (id == 3) return p.talentFlashTime == level - 1; return false; }
-
-    public void updateASCIIProgress() { StringBuilder sb = new StringBuilder("["); for (int i=1; i<=20; i++) { if (i <= (engine.progress*20)) sb.append("|"); else sb.append("."); } sb.append("] ").append((int)(engine.progress*100)).append("%"); progressDisplay.setText("LEVEL " + p.currentLevel + " " + sb.toString()); if (!engine.isHacking && !engine.isFirewallFight && !engine.isBugCatchFight) statusLabel.setText(">>> WARNING: LOSING PROGRESS... [RELEASED]"); else if (engine.isHacking) statusLabel.setText(">>> INJECTING... BREACHING LAYER " + (engine.currentSegment+1)); }
+    public void updateASCIIProgress() { StringBuilder sb = new StringBuilder("[");
+        int fill = (int) Math.round(engine.progress * 20); int percentage = (int) Math.round(engine.progress * 100);
+        for (int i=1; i<=20; i++) { if (i <= fill) sb.append("|"); else sb.append("."); }
+        sb.append("] ").append(percentage).append("%"); progressDisplay.setText("LEVEL " + p.currentLevel + " " + sb.toString());
+        if (engine.isBossFight) statusLabel.setText(">>> BOSS ENGAGED : PHASE " + engine.bossPhase); else if (!engine.isHacking && !engine.isFirewallFight && !engine.isBugCatchFight && !engine.isInterceptFight && !engine.isDecryptFight) statusLabel.setText(">>> WARNING: LOSING PROGRESS... [RELEASED]"); else if (engine.isHacking) statusLabel.setText(">>> INJECTING... BREACHING LAYER " + (engine.currentSegment+1)); }
     public void typeWriterUpdate(String t) { this.currentTargetText = t; statusLabel.setText(t); }
-
     private Button createStyledButton(String text) { Button btn = new Button(text); setupNeonButtonAnimation(btn, "#00FFCC", "rgba(0, 255, 204, 0.15)"); return btn; }
     private Button createShopButton(String name, int cost) { Button btn = new Button(name); setupNeonButtonAnimation(btn, "#00FF00", "rgba(0, 255, 0, 0.12)"); return btn; }
 }
