@@ -6,14 +6,60 @@ public class HackEngine {
     public enum GameState { MAIN_MENU, ROUTE_SELECT, SHOP, TALENT_TREE, PLAYING, PAUSED, GAMEOVER, INTRO }
     public enum GlitchType { NONE, NETWORK_LAG, VISUAL_DISTORTION, CORE_OVERLOAD }
 
-    // === 新增：Boss 系統專屬型態與狀態 ===
-    public enum BossType { NONE, SENTINEL, PHANTOM, CERBERUS, ARCHITECT, NULL_GOD }
+    // === 【修復】把 PHANTOM 加回來，避免其他檔案找不到報錯 ===
+    public enum BossType { NONE, PULSE, SURGE, PHANTOM, CERBERUS, ARCHITECT, MIMIC, HYDRA, SPECTER, NULL_GOD }
+
     public boolean isBossFight = false;
     public BossType currentBossType = BossType.NONE;
-    public int bossPhase = 1; // 1: 突破外層, 2: 滲透核心, 3: 最終解密
-    public int bossRage = 0; // 失敗疊加的憤怒值 (最大 3)
-    public long cerberusGlobalDeadline = 0; // 三頭犬專屬全域倒數
-    public long lastArchitectShiftTime = 0; // 建築師專屬干擾計時器
+    public int bossPhase = 1;
+    public int maxBossPhase = 3;
+    public int bossRage = 0;
+    public boolean isEscapeSequence = false;
+
+    // === SURGE (第 10 關) 專屬變數 ===
+    public boolean isSurgeFight = false;
+    public int surgePlayerPos = 2; // 0~4, 初始在中間
+    public int surgeHP = 3;
+    public long surgeStartTime = 0;
+    public long surgeNextAttackTime = 0;
+    public int surgeHealsDone = 0;
+    public boolean[] surgeWarnings = new boolean[5];
+    public boolean[] surgeExplosions = new boolean[5];
+    public long surgeWarnEndTime = 0;
+    public long surgeExplodeEndTime = 0;
+    public boolean isSurgeFakeOut = false;
+
+    // === PULSE (第 5 關) 專屬變數 ===
+    public boolean isPulseFight = false;
+    public double pulseScanPos = 0.0;
+    public double pulseScanDir = 1.0;
+    public double pulseScanSpeed = 0.012;
+    public double pulseZoneMin = 0.35;
+    public double pulseZoneMax = 0.65;
+    public int pulseHitsRequired = 5;
+    public int pulseHitsCount = 0;
+    public boolean pulseJustHit = false;
+    public long pulseHitFlashEnd = 0;
+    public long pulsePhase1Deadline = 0;
+    public long[] pulseLetterDeadlines;
+    public long pulseLetterWindow = 400_000_000L;
+    public long pulseBeatInterval = 1_200_000_000L;
+    public String[] pulseRevealChars;
+    public int pulseRevealIndex = 0;
+    public long pulseNextRevealTime = 0;
+    public long pulseRevealInterval = 600_000_000L;
+    public boolean pulseAllRevealed = false;
+
+    // === 其他 Boss 專屬特殊變數 ===
+    public long cerberusGlobalDeadline = 0;
+    public long lastArchitectShiftTime = 0;
+    public boolean isMimicWindow = true;
+    public long mimicToggleTime = 0;
+    public String displaySequence = "";
+    public double[] hydraWalls = {1.0, 1.0, 1.0};
+    public int activeHydraHead = 0;
+    public boolean isSpecterHidden = false;
+    public long specterHideTime = 0;
 
     public GameState currentState = GameState.MAIN_MENU;
     public double progress = 0.0;
@@ -28,7 +74,6 @@ public class HackEngine {
     public double coreHeat = 0.0;
     public boolean isOverheated = false;
     public long overheatEndTime = 0;
-
     public boolean isBeingTraced = false;
     public double traceLevel = 0.0;
 
@@ -68,7 +113,9 @@ public class HackEngine {
 
     public void resetEvents() {
         isFirewallFight = false; isInterceptFight = false; isDecryptFight = false; isBugCatchFight = false;
-        isBossFight = false; bossPhase = 1; bossRage = 0; currentBossType = BossType.NONE;
+        isBossFight = false; bossPhase = 1; bossRage = 0; currentBossType = BossType.NONE; isEscapeSequence = false;
+        isPulseFight = false; pulseHitsCount = 0; pulseRevealIndex = 0; pulseAllRevealed = false;
+        isSurgeFight = false;
     }
 
     public void rollGlitch(int level) {
@@ -81,19 +128,19 @@ public class HackEngine {
         }
     }
 
-    // 判斷 Boss 型態 (每 5 關一個)
     public BossType determineBossType(int level) {
         if (level % 5 != 0) return BossType.NONE;
-        if (level == 5) return BossType.SENTINEL;
-        if (level == 10) return BossType.PHANTOM;
+        if (level == 5) return BossType.PULSE;
+        if (level == 10) return BossType.SURGE;
         if (level == 15) return BossType.CERBERUS;
         if (level == 20) return BossType.ARCHITECT;
+        if (level == 25) return BossType.MIMIC;
+        if (level == 30) return BossType.HYDRA;
+        if (level == 35) return BossType.SPECTER;
         return BossType.NULL_GOD;
     }
 
-    public boolean isBossLevel(int level) {
-        return level % 5 == 0;
-    }
+    public boolean isBossLevel(int level) { return level % 5 == 0; }
 
     public String generateBossAlphaNum(int length) {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -103,32 +150,107 @@ public class HackEngine {
     }
 
     public void shiftArchitectTarget() {
-        if (currentBossType == BossType.SENTINEL || (currentBossType == BossType.NULL_GOD && random.nextBoolean())) {
-            decryptTarget = generateBossAlphaNum(decryptTarget.length());
-        } else {
-            StringBuilder sb = new StringBuilder();
-            for(int i=0; i<decryptTarget.length(); i++) sb.append((char)(random.nextInt(26) + 'A'));
-            decryptTarget = sb.toString();
-        }
-        decryptInput = "";
+        StringBuilder sb = new StringBuilder();
+        for(int i=0; i<decryptTarget.length(); i++) sb.append((char)(random.nextInt(26) + 'A'));
+        decryptTarget = sb.toString(); decryptInput = "";
     }
 
+    // === SURGE 攻擊生成邏輯 ===
+    public double getSurgeElapsed() {
+        if (!isSurgeFight) return 0.0;
+        return (System.nanoTime() - surgeStartTime) / 1_000_000_000.0;
+    }
+
+    public void generateSurgeAttack(double elapsed, long now) {
+        for(int i=0; i<5; i++) { surgeWarnings[i] = false; }
+        double warningTime = 0.8;
+        long nextInterval = 1_500_000_000L;
+        int targetsCount = 1;
+        isSurgeFakeOut = false;
+
+        if (elapsed < 20) {
+            targetsCount = 1; warningTime = 0.8; nextInterval = 1_500_000_000L;
+        } else if (elapsed < 45) {
+            targetsCount = 1; warningTime = 0.6;
+            nextInterval = random.nextBoolean() ? 400_000_000L : 1_200_000_000L;
+        } else if (elapsed < 70) {
+            targetsCount = 2; warningTime = 0.6; nextInterval = 1_200_000_000L;
+            if (random.nextDouble() < 0.25) isSurgeFakeOut = true;
+        } else {
+            targetsCount = 3; warningTime = 0.5; nextInterval = 900_000_000L;
+        }
+
+        if (targetsCount == 3) {
+            int furthest = 2;
+            if (surgePlayerPos < 2) furthest = 4;
+            else if (surgePlayerPos > 2) furthest = 0;
+            else furthest = random.nextBoolean() ? 0 : 4;
+
+            surgeWarnings[furthest] = true;
+            targetsCount--;
+        }
+
+        while (targetsCount > 0) {
+            int r = random.nextInt(5);
+            if (!surgeWarnings[r]) { surgeWarnings[r] = true; targetsCount--; }
+        }
+
+        surgeWarnEndTime = now + (long)(warningTime * 1_000_000_000L);
+        surgeNextAttackTime = surgeWarnEndTime + nextInterval;
+    }
+
+    public void updateSurgeHeal(double elapsed) {
+        if (elapsed >= 30.0 && surgeHealsDone == 0) { surgeHP = Math.min(3, surgeHP + 1); surgeHealsDone++; }
+        if (elapsed >= 60.0 && surgeHealsDone == 1) { surgeHP = Math.min(3, surgeHP + 1); surgeHealsDone++; }
+    }
+
+    // === PULSE 方法 ===
+    public void startPulseFirewall(long now) {
+        isPulseFight = true; pulseScanPos = 0.0; pulseScanDir = 1.0;
+        pulseHitsCount = 0; pulseJustHit = false; pulseHitsRequired = 5;
+        isFirewallFight = true; firewallProgress = 0.0; pulsePhase1Deadline = now + 15_000_000_000L;
+    }
+    public void startPulseBeat(PlayerStats p, long now) {
+        isInterceptFight = true; sequenceIndex = 0; int len = 4 + (p.currentLevel / 4);
+        String[] dirs = {"W","A","S","D"}; StringBuilder sb = new StringBuilder();
+        for (int i=0; i<len; i++) sb.append(dirs[random.nextInt(4)]);
+        targetSequence = sb.toString(); pulseLetterDeadlines = new long[len];
+        for (int i=0; i<len; i++) pulseLetterDeadlines[i] = now + pulseBeatInterval * (i + 1);
+        interceptDeadline = now + pulseBeatInterval * (len + 2);
+    }
+    public void startPulseReveal(PlayerStats p, long now) {
+        isDecryptFight = true; decryptInput = ""; int len = 4 + (p.currentLevel / 5);
+        StringBuilder sb = new StringBuilder(); for(int i=0; i<len; i++) sb.append((char)(random.nextInt(26) + 'A'));
+        decryptTarget = sb.toString(); pulseRevealChars = decryptTarget.split(""); pulseRevealIndex = 0; pulseAllRevealed = false;
+        pulseNextRevealTime = now + 1_500_000_000L; decryptDeadline = now + (long)(15.0 * 1_000_000_000L); isDecryptFlashed = false; decryptFlashEndTime = 0;
+    }
+    public void updatePulseScan(long now) {
+        pulseScanPos += pulseScanSpeed * pulseScanDir;
+        if (pulseScanPos >= 1.0) { pulseScanPos = 1.0; pulseScanDir = -1.0; }
+        if (pulseScanPos <= 0.0) { pulseScanPos = 0.0; pulseScanDir = 1.0; }
+        if (pulseJustHit && now > pulseHitFlashEnd) pulseJustHit = false;
+    }
+    public int judgePulseHit() {
+        if (pulseScanPos >= pulseZoneMin && pulseScanPos <= pulseZoneMax) {
+            pulseHitsCount++; firewallProgress = (double) pulseHitsCount / pulseHitsRequired; pulseJustHit = true; pulseHitFlashEnd = System.nanoTime() + 200_000_000L; return 1;
+        } else if (pulseScanPos <= pulseZoneMax + 0.15 && pulseScanPos >= pulseZoneMin - 0.15) { return 0; } else {
+            firewallProgress = Math.max(0, firewallProgress - 0.2); pulseHitsCount = (int)(firewallProgress * pulseHitsRequired); return -1;
+        }
+    }
+
+    // === 通用事件啟動 ===
     public void startInterceptEvent(PlayerStats p, long now) {
-        isInterceptFight = true; sequenceIndex = 0;
-        int len = 4 + (p.currentLevel / 3);
+        isInterceptFight = true; sequenceIndex = 0; int len = 4 + (p.currentLevel / 3);
         String[] dirs = {"W", "A", "S", "D"}; StringBuilder sb = new StringBuilder();
         for (int i=0; i<len; i++) sb.append(dirs[random.nextInt(4)]);
-        targetSequence = sb.toString();
+        targetSequence = sb.toString(); displaySequence = targetSequence;
         double time = 4.0 - (p.currentLevel * 0.05); if(time < 1.5) time = 1.5;
         if (activeGlitch == GlitchType.NETWORK_LAG) time *= 0.6;
         interceptDeadline = now + (long)(time * 1_000_000_000L);
     }
-
     public void startDecryptEvent(PlayerStats p, long now) {
-        isDecryptFight = true; decryptInput = ""; isDecryptFlashed = false;
-        int len = 4 + (p.currentLevel / 4);
-        StringBuilder sb = new StringBuilder();
-        for(int i=0; i<len; i++) sb.append((char)(random.nextInt(26) + 'A'));
+        isDecryptFight = true; decryptInput = ""; isDecryptFlashed = false; int len = 4 + (p.currentLevel / 4);
+        StringBuilder sb = new StringBuilder(); for(int i=0; i<len; i++) sb.append((char)(random.nextInt(26) + 'A'));
         decryptTarget = sb.toString();
         double flashTime = 1.2 + (p.talentFlashTime * 0.15) - (p.currentLevel * 0.03); if(flashTime < 0.4) flashTime = 0.4;
         decryptFlashEndTime = now + (long)(flashTime * 1_000_000_000L);
@@ -136,30 +258,28 @@ public class HackEngine {
         if (activeGlitch == GlitchType.NETWORK_LAG) totalTime *= 0.6;
         decryptDeadline = now + (long)(totalTime * 1_000_000_000L);
     }
-
     public void startBugCatchEvent(PlayerStats p, long now) {
-        isBugCatchFight = true; bugsCaught = 0;
-        double baseTime = 15.0 - (p.currentLevel * 0.2); if(baseTime < 7.0) baseTime = 7.0;
-        bugCatchDeadline = now + (long)(baseTime * 1_000_000_000L);
-        lastBugSpawnTime = now;
+        isBugCatchFight = true; bugsCaught = 0; double baseTime = 15.0 - (p.currentLevel * 0.2); if(baseTime < 7.0) baseTime = 7.0;
+        bugCatchDeadline = now + (long)(baseTime * 1_000_000_000L); lastBugSpawnTime = now;
     }
 
     public boolean useEMP(PlayerStats p) {
-        if (p.empCharges > 0 && isFirewallFight) { p.empCharges--; firewallProgress = Math.min(1.0, firewallProgress + 0.4); return true; } return false;
+        if (p.empCharges > 0 && isFirewallFight && currentBossType != BossType.PULSE) {
+            p.empCharges--;
+            if(currentBossType == BossType.HYDRA && isBossFight) { for(int i=0; i<3; i++) hydraWalls[i] = Math.min(1.0, hydraWalls[i] + 0.4); }
+            else { firewallProgress = Math.min(1.0, firewallProgress + 0.4); }
+            return true;
+        } return false;
     }
-
     public boolean useSlow(PlayerStats p) {
         if (p.slowCharges > 0) {
-            if (isInterceptFight) { p.slowCharges--; interceptDeadline += 3_000_000_000L; return true; }
+            if (isInterceptFight && currentBossType != BossType.PULSE) { p.slowCharges--; interceptDeadline += 3_000_000_000L; return true; }
             if (isDecryptFight) { p.slowCharges--; decryptDeadline += 3_000_000_000L; return true; }
             if (isBugCatchFight) { p.slowCharges--; bugCatchDeadline += 3_000_000_000L; return true; }
         } return false;
     }
 
     public void updateMaxCombo() { if (comboMultiplier > runMaxCombo) runMaxCombo = comboMultiplier; }
-    public int getRunAPM() {
-        long duration = System.nanoTime() - runStartTime; double mins = duration / 60_000_000_000.0;
-        return mins > 0 ? (int)(runTotalKeystrokes / mins) : 0;
-    }
+    public int getRunAPM() { long duration = System.nanoTime() - runStartTime; double mins = duration / 60_000_000_000.0; return mins > 0 ? (int)(runTotalKeystrokes / mins) : 0; }
     public double getRunAccuracy() { return runTotalKeystrokes > 0 ? ((double)runCorrectKeystrokes / runTotalKeystrokes) * 100 : 100.0; }
 }
