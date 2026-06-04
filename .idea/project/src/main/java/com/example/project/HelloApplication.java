@@ -36,9 +36,14 @@ public class HelloApplication extends Application {
     public AudioClip bossIntroSound, bossPhaseSound;
 
     private MediaPlayer bgmPlayer;
+    private AudioClip hackTickSound;
+    private long lastHackSoundTime = 0;
+    private int hackSoundInterval = 100;
+    private AudioFormat cachedAudioFormat;
     private ExecutorService audioPool;
     private byte[] cachedSuccessBuf;
-    private AudioFormat cachedAudioFormat;
+    private AudioClip hoverSound;
+    private AudioClip clickSound;
 
     @Override
     public void start(Stage stage) {
@@ -48,12 +53,16 @@ public class HelloApplication extends Application {
     }
 
     @Override
-    public void stop() { if (audioPool != null) audioPool.shutdownNow(); if (bgmPlayer != null) bgmPlayer.stop(); }
+    public void stop() {
+        if (bgmPlayer != null) bgmPlayer.stop();
+    }
 
     private void initAudio() {
+        // 1. 初始化動態音效池與合成音效的資料 (負責 WASD 和密碼的成功音效)
         audioPool = Executors.newFixedThreadPool(4);
         try {
-            float sampleRate = 44100f; cachedSuccessBuf = new byte[2400];
+            float sampleRate = 44100f;
+            cachedSuccessBuf = new byte[2400];
             for (int i = 0; i < cachedSuccessBuf.length; i++) {
                 double frequency = 1050.0 + (200.0 * ((double) i / cachedSuccessBuf.length));
                 double angle = i / (sampleRate / frequency) * 2.0 * Math.PI;
@@ -62,22 +71,114 @@ public class HelloApplication extends Application {
             }
             cachedAudioFormat = new AudioFormat(sampleRate, 8, 1, true, false);
         } catch (Exception e) { }
+
+        // 2. 讀取其他實體音效檔案
         try { errorSound1 = new AudioClip(getClass().getResource("/error1.mp3").toExternalForm()); errorSound2 = new AudioClip(getClass().getResource("/error2.mp3").toExternalForm()); loseSound = new AudioClip(getClass().getResource("/lose.mp3").toExternalForm()); gunshotSound = new AudioClip(getClass().getResource("/gun.mp3").toExternalForm()); pictureHitSound = new AudioClip(getClass().getResource("/pic_hit.mp3").toExternalForm()); } catch (Exception e) {}
         try { bossIntroSound = new AudioClip(getClass().getResource("/boss_intro.mp3").toExternalForm()); } catch (Exception e) {}
         try { bossPhaseSound = new AudioClip(getClass().getResource("/boss_phase.mp3").toExternalForm()); } catch (Exception e) {}
-        try { Media bgmMedia = new Media(getClass().getResource("/bgm.mp3").toExternalForm()); bgmPlayer = new MediaPlayer(bgmMedia); bgmPlayer.setCycleCount(MediaPlayer.INDEFINITE); bgmPlayer.setVolume(0.5); bgmPlayer.play(); } catch (Exception e) {}
+
+        // 讀取你自己的左鍵進度音效檔 (請確保 resources 資料夾下有這個檔案)
+        try { hackTickSound = new AudioClip(getClass().getResource("/hack_tick.mp3").toExternalForm()); } catch (Exception e) {}
+
+        // 讀取滑鼠游標移入選項的音效
+        try { hoverSound = new AudioClip(getClass().getResource("/hover.mp3").toExternalForm()); } catch (Exception e) {}
+
+        // 讀取滑鼠點擊選項的音效
+        try { clickSound = new AudioClip(getClass().getResource("/click.mp3").toExternalForm()); } catch (Exception e) {}
+
+        // 3. 初始 BGM 音量設為 0.5 的平方 (0.25) 來對應 UI 滑桿的預設位置
+        try { Media bgmMedia = new Media(getClass().getResource("/bgm.mp3").toExternalForm()); bgmPlayer = new MediaPlayer(bgmMedia); bgmPlayer.setCycleCount(MediaPlayer.INDEFINITE); bgmPlayer.setVolume(0.25); bgmPlayer.play(); } catch (Exception e) {}
+    }
+    public void playHoverSound() {
+        if (hoverSound != null) {
+            hoverSound.setVolume(getActualSfxVolume() * 0.5);
+            hoverSound.play();
+        }
+    }
+    public void playClickSound() {
+        if (clickSound != null) {
+            clickSound.setVolume(getActualSfxVolume());
+            clickSound.play();
+        }
+    }
+    //專門用來播放按住左鍵時的定時微小音效，受 sfxVolume 影響
+    public void playHackTickSound() {
+        if (hackTickSound != null) {
+            // 如果覺得按鍵音太大會吵到 BGM，可以在這裡乘上一個小於 1 的倍率，例如 * 0.7
+            hackTickSound.setVolume(getActualSfxVolume() * 0.7);
+            hackTickSound.play();
+        }
     }
 
-    public void setBgmVolume(double vol) { if (bgmPlayer != null) bgmPlayer.setVolume(vol); }
+    public void setBgmVolume(double vol) {
+        if (bgmPlayer != null) bgmPlayer.setVolume(vol * vol);
+    }
     public double sfxVolume = 0.5;
-    public void playErrorSound(int type) { if (type == 1 && errorSound1 != null) { errorSound1.setVolume(sfxVolume); errorSound1.play(); } else if (type == 2 && errorSound2 != null) { errorSound2.setVolume(sfxVolume); errorSound2.play(); } }
-    public void playSuccessSound() { if (audioPool == null || audioPool.isShutdown()) return; audioPool.submit(() -> { try { SourceDataLine sdl = AudioSystem.getSourceDataLine(cachedAudioFormat); sdl.open(cachedAudioFormat); sdl.start(); sdl.write(cachedSuccessBuf, 0, cachedSuccessBuf.length); sdl.drain(); sdl.close(); } catch (Exception e) {} }); }
-    public void playGunshotSound() { if (gunshotSound != null) { gunshotSound.setVolume(sfxVolume); gunshotSound.play(); } }
-    public void playPictureHitSound() { if (pictureHitSound != null) { pictureHitSound.setVolume(sfxVolume); pictureHitSound.play(); } }
+    public void playErrorSound(int type) {
+        if (type == 1 && errorSound1 != null) { errorSound1.setVolume(getActualSfxVolume()); errorSound1.play(); }
+        else if (type == 2 && errorSound2 != null) { errorSound2.setVolume(getActualSfxVolume()); errorSound2.play(); }
+    }
+    public void setSfxVolume(double vol) {
+        this.sfxVolume = vol;
+        double actualVol = getActualSfxVolume();
+        if (bossIntroSound != null) bossIntroSound.setVolume(actualVol);
+        if (bossPhaseSound != null) bossPhaseSound.setVolume(actualVol);
+        if (loseSound != null) loseSound.setVolume(actualVol);
+    }
+
+    public void playSuccessSound() {
+        // 確保 audioPool 已經成功初始化才執行
+        if (audioPool == null || audioPool.isShutdown()) return;
+
+        audioPool.submit(() -> {
+            try {
+                SourceDataLine sdl = AudioSystem.getSourceDataLine(cachedAudioFormat);
+                sdl.open(cachedAudioFormat);
+
+                // 動態調整音量
+                if (sdl.isControlSupported(javax.sound.sampled.FloatControl.Type.MASTER_GAIN)) {
+                    javax.sound.sampled.FloatControl gainControl = (javax.sound.sampled.FloatControl) sdl.getControl(javax.sound.sampled.FloatControl.Type.MASTER_GAIN);
+                    float dB = (float) (Math.log10(getActualSfxVolume() > 0.0001 ? getActualSfxVolume() : 0.0001) * 20.0);
+                    gainControl.setValue(dB);
+                }
+
+                sdl.start();
+                sdl.write(cachedSuccessBuf, 0, cachedSuccessBuf.length);
+                sdl.drain();
+                sdl.close();
+            } catch (Exception e) {}
+        });
+    }
+    public void playGunshotSound() {
+        if (gunshotSound != null) { gunshotSound.setVolume(getActualSfxVolume()); gunshotSound.play(); }
+    }
+    public void playPictureHitSound() {
+        if (pictureHitSound != null) { pictureHitSound.setVolume(getActualSfxVolume()); pictureHitSound.play(); }
+    }
 
     private void setupInputHandlers(Scene scene) {
-        scene.setOnMousePressed(e -> { if (engine.currentState == HackEngine.GameState.PLAYING && e.getButton() == MouseButton.PRIMARY && !engine.isFirewallFight && !engine.isInterceptFight && !engine.isDecryptFight && !engine.isBugCatchFight) { engine.isHacking = true; ui.playComboHitEffect(engine.comboMultiplier); } });
-        scene.setOnMouseReleased(e -> { if (engine.currentState == HackEngine.GameState.PLAYING && e.getButton() == MouseButton.PRIMARY) engine.isHacking = false; });
+        scene.setOnMousePressed(e -> {
+            if (engine.currentState == HackEngine.GameState.PLAYING && e.getButton() == MouseButton.PRIMARY && !engine.isFirewallFight && !engine.isInterceptFight && !engine.isDecryptFight && !engine.isBugCatchFight) {
+                engine.isHacking = true;
+                ui.playComboHitEffect(engine.comboMultiplier);
+
+                // 按下的瞬間立刻先播放第一次音效，提升操作即時回饋感
+                playHackTickSound();
+                lastHackSoundTime = System.currentTimeMillis();
+            }
+        });
+        scene.setOnMouseReleased(e -> {
+            if (e.getButton() == MouseButton.PRIMARY) {
+                // 放開左鍵時，不論目前遊戲狀態是什麼（即使已經進商店了），都強制中斷音效避免殘音
+                if (hackTickSound != null && hackTickSound.isPlaying()) {
+                    hackTickSound.stop();
+                }
+
+                if (engine.currentState == HackEngine.GameState.PLAYING) {
+                    engine.isHacking = false;
+                }
+            }
+        });
         scene.setOnKeyPressed(e -> {
             if (!ui.root.isFocused()) ui.root.requestFocus();
             if (e.getCode() == KeyCode.F1) { if (engine.currentState == HackEngine.GameState.PLAYING) { engine.resetEvents(); ui.firewallLayer.setVisible(false); ui.interceptLayer.setVisible(false); ui.decryptLayer.setVisible(false); ui.bugCatchLayer.setVisible(false); ui.surgeLayer.setVisible(false); ui.typeWriterUpdate("[DEBUG_MODE] INSTANT WIN ACTIVATED."); playLevelClearExplosion(); } }
@@ -174,14 +275,16 @@ public class HelloApplication extends Application {
             if (e.getCode() == KeyCode.ESCAPE && engine.currentState == HackEngine.GameState.PLAYING) { engine.currentState = HackEngine.GameState.PAUSED; ui.pauseLayer.setVisible(true); }
         });
     }
-
+    private double getActualSfxVolume() {
+        return sfxVolume * sfxVolume;
+    }
     private void startGameLoop() {
         Timeline timeline = new Timeline(new KeyFrame(Duration.millis(16), e -> {
             ui.drawMatrixRain();
             if (engine.currentState != HackEngine.GameState.PLAYING) return;
             long now = System.nanoTime();
 
-            if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { ui.root.setTranslateX((engine.random.nextDouble() - 0.5) * 6.5); ui.root.setTranslateY((engine.random.nextDouble() - 0.5) * 6.5); if (engine.random.nextInt(15) == 0) ui.statusLabel.setText("⚠ CRITICAL_ERROR: LINE_FRACTURE_DETECTION ⚠"); } else { ui.root.setTranslateX(0); ui.root.setTranslateY(0); }
+            if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { ui.root.setTranslateX((engine.random.nextDouble() - 0.5) * 6.5); ui.root.setTranslateY((engine.random.nextDouble() - 0.5) * 6.5); if (engine.random.nextInt(15) == 0) { if (!"⚠ CRITICAL_ERROR: LINE_FRACTURE_DETECTION ⚠".equals(ui.statusLabel.getText())) ui.statusLabel.setText("⚠ CRITICAL_ERROR: LINE_FRACTURE_DETECTION ⚠"); } } else { ui.root.setTranslateX(0); ui.root.setTranslateY(0); }
 
             if (engine.isBossFight && !engine.isEscapeSequence) {
                 bossManager.updateBossLoop(now);
@@ -199,18 +302,24 @@ public class HelloApplication extends Application {
             }
 
             if (engine.isInterceptFight) {
-                double timeLeft = (engine.interceptDeadline - now) / 1_000_000_000.0; ui.interceptTimeDisplay.setText(String.format("Time left: %.1fs", Math.max(0, timeLeft)));
+                double timeLeft = (engine.interceptDeadline - now) / 1_000_000_000.0;
+                String timeStr = String.format("Time left: %.1fs", Math.max(0, timeLeft));
+                if (!timeStr.equals(ui.interceptTimeDisplay.getText())) ui.interceptTimeDisplay.setText(timeStr);
                 if (now > engine.interceptDeadline) { if (engine.isEscapeSequence) { engine.isEscapeSequence = false; engine.isInterceptFight = false; ui.interceptLayer.setVisible(false); ui.interceptTimeDisplay.setTextFill(Color.WHITE); triggerGameOver("FATAL ERROR: NEURAL OVERRIDE FAILED"); } else { handleEventFailure(); } }
             }
 
             if (engine.isDecryptFight) {
                 if (!engine.isDecryptFlashed && now > engine.decryptFlashEndTime) { engine.isDecryptFlashed = true; ui.decryptTargetDisplay.setText("? ? ? ? ?"); }
-                double timeLeft = (engine.decryptDeadline - now) / 1_000_000_000.0; ui.decryptTimeDisplay.setText(String.format("Time left: %.1fs", Math.max(0, timeLeft)));
+                double timeLeft = (engine.decryptDeadline - now) / 1_000_000_000.0;
+                String timeStr = String.format("Time left: %.1fs", Math.max(0, timeLeft));
+                if (!timeStr.equals(ui.decryptTimeDisplay.getText())) ui.decryptTimeDisplay.setText(timeStr);
                 if (now > engine.decryptDeadline) handleEventFailure();
             }
 
             if (engine.isBugCatchFight) {
-                double timeLeft = (engine.bugCatchDeadline - now) / 1_000_000_000.0; ui.bugTimeLabel.setText(String.format("Time left: %.1fs", Math.max(0, timeLeft)));
+                double timeLeft = (engine.bugCatchDeadline - now) / 1_000_000_000.0;
+                String timeStr = String.format("Time left: %.1fs", Math.max(0, timeLeft));
+                if (!timeStr.equals(ui.bugTimeLabel.getText())) ui.bugTimeLabel.setText(timeStr);
                 long refreshInterval = Math.max(550_000_000L, 1_100_000_000L - (p.currentLevel * 35_000_000L));
                 if (now - engine.lastBugSpawnTime > refreshInterval) { ui.spawnBugsForEvent(); engine.lastBugSpawnTime = now; }
                 if (now > engine.bugCatchDeadline) handleEventFailure();
@@ -232,7 +341,30 @@ public class HelloApplication extends Application {
                 } else { ui.updateTraceUI(0); }
 
                 double checkpointSize = 1.0 / engine.totalSegments; double securedProgress = engine.currentSegment * checkpointSize; double targetCheckpoint = (engine.currentSegment + 1) * checkpointSize;
-                if (engine.isHacking) { engine.progress += 0.0022 + (p.upgSpeed * 0.0006); if (engine.progress >= targetCheckpoint) { engine.progress = targetCheckpoint; engine.isHacking = false; ui.updateASCIIProgress(); if (engine.currentSegment < engine.totalSegments - 1) triggerCheckpointEvent(); else playLevelClearExplosion(); } }
+                if (engine.isHacking) {
+                    engine.progress += 0.0022 + (p.upgSpeed * 0.0006);
+
+                    long nowMs = System.currentTimeMillis();
+                    if (nowMs - lastHackSoundTime >= hackSoundInterval) {
+                        playHackTickSound();
+                        lastHackSoundTime = nowMs;
+                        hackSoundInterval = 70 + engine.random.nextInt(70);
+                    }
+
+                    if (engine.progress >= targetCheckpoint) {
+                        engine.progress = targetCheckpoint;
+                        engine.isHacking = false;
+
+                        // 進度滿了切換事件或進商店，強制停止音效避免帶到下一個畫面
+                        if (hackTickSound != null && hackTickSound.isPlaying()) {
+                            hackTickSound.stop();
+                        }
+
+                        ui.updateASCIIProgress();
+                        if (engine.currentSegment < engine.totalSegments - 1) triggerCheckpointEvent();
+                        else playLevelClearExplosion();
+                    }
+                }
                 else { engine.progress -= 0.0010 + (p.currentLevel * 0.0004); if (engine.progress < securedProgress) engine.progress = securedProgress; }
                 ui.updateASCIIProgress();
             }

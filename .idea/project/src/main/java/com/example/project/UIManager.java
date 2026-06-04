@@ -21,6 +21,7 @@ public class UIManager {
     private final PlayerStats p;
     private final HackEngine engine;
     private final HelloApplication app;
+    private final String[] charCache = new String[94];
 
     public StackPane root, menuLayer, introLayer, gameLayer, pauseLayer, firewallLayer, interceptLayer, decryptLayer, bugCatchLayer, shopLayer, gameOverLayer, routeLayer, talentLayer;
     public StackPane bossIntroLayer, bossFailLayer, surgeLayer; // 新增 SURGE 圖層
@@ -42,6 +43,7 @@ public class UIManager {
     public ImageView errorImage1, errorImage2;
     public Button btnShopClick, btnShopSpeed, btnShopCoolant, btnShopStealth, btnShopEmp, btnShopSlow;
     public Slider menuVolumeSlider, pauseVolumeSlider;
+    public Slider menuSfxSlider, pauseSfxSlider;
 
     private Group treeGroup;
     public String currentTargetText = "";
@@ -67,6 +69,11 @@ public class UIManager {
         neonGlowPink = new DropShadow(); neonGlowPink.setColor(Color.rgb(255, 0, 127, 0.8)); neonGlowPink.setRadius(15); neonGlowPink.setSpread(0.2);
         neonGlowGreen = new DropShadow(); neonGlowGreen.setColor(Color.rgb(0, 255, 0, 0.8)); neonGlowGreen.setRadius(15); neonGlowGreen.setSpread(0.4);
         try { targetBugImg = new Image(getClass().getResource("/bug.png").toExternalForm()); obstacleBugImgs = new Image[]{ new Image(getClass().getResource("/chen1.jpg").toExternalForm()), new Image(getClass().getResource("/chen2.jpg").toExternalForm()), new Image(getClass().getResource("/chen3.png").toExternalForm()) }; } catch (Exception e) {}
+
+        // 預先產生好 94 個 ASCII 字元字串，避免在迴圈中每秒產生幾千個新 String 物件
+        for(int i = 0; i < 94; i++) {
+            charCache[i] = String.valueOf((char)(i + 33));
+        }
     }
 
     private void buildVisuals() {
@@ -74,23 +81,86 @@ public class UIManager {
         matrixCanvas = new Canvas(800, 600); gc = matrixCanvas.getGraphicsContext2D();
         for (int i = 0; i < matrixCols; i++) { dropY[i] = engine.random.nextDouble() * 600; dropSpeed[i] = 1.5 + engine.random.nextDouble() * 2.5; }
         Label crtOverlay = new Label(); crtOverlay.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE); crtOverlay.setStyle("-fx-background-color: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 1px, rgba(0,255,0,0.03) 2px, rgba(0,255,0,0.03) 3px);"); crtOverlay.setMouseTransparent(true);
-        menuLayer = new StackPane(); menuLayer.setStyle("-fx-background-color: rgba(11, 12, 16, 0.95);"); VBox menuBox = new VBox(20); menuBox.setAlignment(Pos.CENTER);
-        versionLabel = new Label("CONNECTION: ACTIVE // PROTOCOL: NEON_CORE_v2.85"); versionLabel.setTextFill(Color.rgb(0, 255, 204, 0.6)); versionLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 13));
+
+        // === 駭客化修改：把大廳底色的透明度大幅降至 0.25，讓背後的閃電和雨粒清晰透出 ===
+        menuLayer = new StackPane(); menuLayer.setStyle("-fx-background-color: rgba(11, 12, 16, 0.25);");
+
+        VBox menuBox = new VBox(20); menuBox.setAlignment(Pos.CENTER);
+        versionLabel = new Label("CONNECTION: ACTIVE // PROTOCOL: NEON_CORE_v2.85"); versionLabel.setTextFill(Color.rgb(0, 255, 204, 0.8)); versionLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 13));
+
         Label title = new Label("NEON BREACH"); title.setTextFill(Color.CYAN); title.setFont(Font.font("Impact", 75)); title.setEffect(neonGlowCyan);
-        highScoreDisplay = new Label("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢"); highScoreDisplay.setTextFill(Color.LIME); highScoreDisplay.setFont(Font.font("Consolas", 20));
-        systemStatusLabel = new Label("[ SYSTEM STATUS: IDLE - READY FOR INJECTION ]"); systemStatusLabel.setTextFill(Color.YELLOW); systemStatusLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
+
+        Timeline titleGlitch = new Timeline(new KeyFrame(Duration.millis(150), e -> {
+            if (engine.random.nextDouble() < 0.08) {
+                String[] glitches = {"N3ON BR3ACH", "N#ON B!EACH", "N_ON B_EACH", "NE0N 8R3ACH", "N E O N  B R E A C H"};
+                title.setText(glitches[engine.random.nextInt(glitches.length)]);
+                title.setTranslateX((engine.random.nextDouble() - 0.5) * 10);
+                title.setTextFill(engine.random.nextBoolean() ? Color.web("#FF007F") : Color.WHITE);
+            } else {
+                title.setText("NEON BREACH");
+                title.setTranslateX(0);
+                title.setTextFill(Color.CYAN);
+            }
+        }));
+        titleGlitch.setCycleCount(Animation.INDEFINITE); titleGlitch.play();
+
+        highScoreDisplay = new Label("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢"); highScoreDisplay.setTextFill(Color.LIME); highScoreDisplay.setFont(Font.font("Consolas", 20)); highScoreDisplay.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-padding: 5;");
+        systemStatusLabel = new Label("[ SYSTEM STATUS: IDLE - READY FOR INJECTION ]"); systemStatusLabel.setTextFill(Color.YELLOW); systemStatusLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14)); systemStatusLabel.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-padding: 5;");
         Button btnStart = createStyledButton(">>> INITIATE HACK <<<"); btnStart.setOnAction(e -> app.startIntroSequence());
         Button btnOpenTalents = createStyledButton(">>> CYBER TALENTS <<<"); setupNeonButtonAnimation(btnOpenTalents, "#FF007F", "rgba(255, 0, 127, 0.2)"); btnOpenTalents.setOnAction(e -> app.openTalentTree());
         Button btnExit = createStyledButton(">>> DISCONNECT SYSTEM <<<"); setupNeonButtonAnimation(btnExit, "#555555", "rgba(85, 85, 85, 0.1)"); btnExit.setOnAction(e -> System.exit(0));
-        bootWarningLabel = new Label("⚠ WARNING: LOCAL SUBNET REPORTING QUANTUM FLUCTUATIONS ⚠"); bootWarningLabel.setTextFill(Color.rgb(255, 50, 50, 0.6)); bootWarningLabel.setFont(Font.font("Consolas", 11));
-        Label menuVolLabel = new Label("SYS_VOL:"); menuVolLabel.setTextFill(Color.CYAN); menuVolLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14)); menuVolumeSlider = new Slider(0, 1, 0.5); menuVolumeSlider.setMaxWidth(200); menuVolumeSlider.setStyle("-fx-cursor: hand;"); HBox menuVolBox = new HBox(10, menuVolLabel, menuVolumeSlider); menuVolBox.setAlignment(Pos.CENTER);
-        menuBox.getChildren().addAll(versionLabel, title, highScoreDisplay, systemStatusLabel, btnStart, btnOpenTalents, btnExit, bootWarningLabel, menuVolBox); menuLayer.getChildren().add(menuBox);
+        bootWarningLabel = new Label("⚠ WARNING: LOCAL SUBNET REPORTING QUANTUM FLUCTUATIONS ⚠"); bootWarningLabel.setTextFill(Color.rgb(255, 50, 50, 0.9)); bootWarningLabel.setFont(Font.font("Consolas", 11)); bootWarningLabel.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-padding: 2;");
+
+        Label menuVolLabel = new Label("BGM_VOL:"); menuVolLabel.setTextFill(Color.CYAN); menuVolLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14)); menuVolumeSlider = new Slider(0, 1, 0.5); menuVolumeSlider.setMaxWidth(200); menuVolumeSlider.setStyle("-fx-cursor: hand;"); HBox menuVolBox = new HBox(10, menuVolLabel, menuVolumeSlider); menuVolBox.setAlignment(Pos.CENTER); menuVolBox.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-padding: 5;");
+        Label menuSfxLabel = new Label("SFX_VOL:"); menuSfxLabel.setTextFill(Color.CYAN); menuSfxLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14)); menuSfxSlider = new Slider(0, 1, 0.5); menuSfxSlider.setMaxWidth(200); menuSfxSlider.setStyle("-fx-cursor: hand;"); HBox menuSfxBox = new HBox(10, menuSfxLabel, menuSfxSlider); menuSfxBox.setAlignment(Pos.CENTER); menuSfxBox.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-padding: 5;");
+
+        menuBox.getChildren().addAll(versionLabel, title, highScoreDisplay, systemStatusLabel, btnStart, btnOpenTalents, btnExit, bootWarningLabel, menuVolBox, menuSfxBox);
+
+        Label fakeTerminal = new Label("> INITIALIZING NEON_CORE...\n> WAITING FOR USER INPUT...");
+        fakeTerminal.setTextFill(Color.LIME); fakeTerminal.setFont(Font.font("Consolas", 12));
+        fakeTerminal.setAlignment(Pos.BOTTOM_LEFT); StackPane.setAlignment(fakeTerminal, Pos.BOTTOM_LEFT);
+        fakeTerminal.setTranslateX(15); fakeTerminal.setTranslateY(-15);
+        fakeTerminal.setStyle("-fx-background-color: rgba(0,0,0,0.6); -fx-padding: 5;"); // 加深終端機底色防止被閃電蓋掉
+
+        String[] logs = {
+                "Decrypting RSA keys...",
+                "Bypassing subnet mask...",
+                "Sniffing port 443...",
+                "Compiling C++ exploit...",
+                "Solving Karnaugh map matrices...",
+                "Bypassing logic gate arrays...",
+                "WARNING: Trace attempt blocked.",
+                "Fetching node data..."
+        };
+
+        Timeline terminalAnim = new Timeline(new KeyFrame(Duration.millis(500), e -> {
+            if (engine.random.nextDouble() < 0.3) return;
+            String current = fakeTerminal.getText();
+            String[] lines = current.split("\n");
+            StringBuilder newLog = new StringBuilder();
+            int start = Math.max(0, lines.length - 4);
+            for (int i = start; i < lines.length; i++) newLog.append(lines[i]).append("\n");
+            newLog.append("> ").append(logs[engine.random.nextInt(logs.length)]);
+            fakeTerminal.setText(newLog.toString());
+        }));
+        terminalAnim.setCycleCount(Animation.INDEFINITE); terminalAnim.play();
+
+        menuLayer.getChildren().addAll(menuBox, fakeTerminal);
+
         FadeTransition statusBlink = new FadeTransition(Duration.millis(800), systemStatusLabel); statusBlink.setFromValue(1.0); statusBlink.setToValue(0.3); statusBlink.setCycleCount(Animation.INDEFINITE); statusBlink.setAutoReverse(true); statusBlink.play(); FadeTransition warningBlink = new FadeTransition(Duration.millis(1200), bootWarningLabel); warningBlink.setFromValue(0.6); warningBlink.setToValue(0.2); warningBlink.setCycleCount(Animation.INDEFINITE); warningBlink.setAutoReverse(true); warningBlink.play();
         introLayer = new StackPane(); introLayer.setStyle("-fx-background-color: black;"); Label introText = new Label(); introText.setTextFill(Color.LIME); introText.setFont(Font.font("Consolas", 24)); introLayer.getChildren().add(introText); introLayer.setVisible(false);
         uiBorder = new Label("╔════════════════════════════════════════════╗\n║                                            ║\n║                                            ║\n║                                            ║\n╚════════════════════════════════════════════╝"); uiBorder.setTextFill(Color.rgb(0, 255, 204, 0.5)); uiBorder.setFont(Font.font("Consolas", 20)); uiBorder.setAlignment(Pos.CENTER);
         VBox gameBox = new VBox(10); gameBox.setAlignment(Pos.CENTER); statusLabel = new Label(""); statusLabel.setTextFill(Color.CYAN); statusLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 18)); glitchWarningLabel = new Label(" [系統狀態：傳輸環境安全]"); glitchWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 15)); glitchWarningLabel.setTextFill(Color.LIME); traceWarningLabel = new Label(""); traceWarningLabel.setTextFill(Color.RED); traceWarningLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 16)); traceWarningLabel.setVisible(false); progressDisplay = new Label("LEVEL 1 [....☼....☼....☼....] 0%"); progressDisplay.setTextFill(Color.LIME); progressDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 28)); comboDisplay = new Label("COMBO: x1.0"); comboDisplay.setTextFill(Color.YELLOW); comboDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 20)); gameBox.getChildren().addAll(statusLabel, glitchWarningLabel, traceWarningLabel, comboDisplay, progressDisplay); gameLayer = new StackPane(uiBorder, gameBox); gameLayer.setVisible(false); skillDisplay = new Label("[1] EMP: 0   [2] SLOW: 0"); skillDisplay.setTextFill(Color.WHITE); skillDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 16)); StackPane.setAlignment(skillDisplay, Pos.BOTTOM_LEFT); gameLayer.getChildren().add(skillDisplay); honeypotBtn = new Button("⚠ [NODE VULNERABILITY] CLICK FOR 300 ¢"); honeypotBtn.setStyle("-fx-background-color: #330000; -fx-text-fill: #FF3333; -fx-border-color: red; -fx-cursor: hand;"); StackPane.setAlignment(honeypotBtn, Pos.TOP_RIGHT); honeypotBtn.setVisible(false); honeypotBtn.setOnAction(e -> app.handleHoneypotTrap()); gameLayer.getChildren().add(honeypotBtn);
         buildEventLayers(); buildRouteLayer(); buildShopLayer(); buildTalentLayerStructure(); buildBossLayers();
-        pauseLayer = new StackPane(); pauseLayer.setStyle("-fx-background-color: rgba(0,0,0,0.85);"); VBox pauseBox = new VBox(20); pauseBox.setAlignment(Pos.CENTER); Label pauseTitle = new Label("SYSTEM PAUSED"); pauseTitle.setTextFill(Color.WHITE); pauseTitle.setFont(Font.font("Consolas", 40)); Label pauseVolLabel = new Label("SYS_VOL:"); pauseVolLabel.setTextFill(Color.CYAN); pauseVolLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14)); pauseVolumeSlider = new Slider(0, 1, 0.5); pauseVolumeSlider.setMaxWidth(200); pauseVolumeSlider.setStyle("-fx-cursor: hand;"); HBox pauseVolBox = new HBox(10, pauseVolLabel, pauseVolumeSlider); pauseVolBox.setAlignment(Pos.CENTER); menuVolumeSlider.valueProperty().bindBidirectional(pauseVolumeSlider.valueProperty()); menuVolumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> { app.setBgmVolume(newVal.doubleValue()); }); Button btnResume = createStyledButton("RESUME"); btnResume.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; pauseLayer.setVisible(false); }); Button btnMenuPause = createStyledButton("ABORT TO MENU"); btnMenuPause.setOnAction(e -> app.returnToMenu()); pauseBox.getChildren().addAll(pauseTitle, pauseVolBox, btnResume, btnMenuPause); pauseLayer.getChildren().add(pauseBox); pauseLayer.setVisible(false);
+        pauseLayer = new StackPane(); pauseLayer.setStyle("-fx-background-color: rgba(0,0,0,0.85);"); VBox pauseBox = new VBox(20); pauseBox.setAlignment(Pos.CENTER); Label pauseTitle = new Label("SYSTEM PAUSED"); pauseTitle.setTextFill(Color.WHITE); pauseTitle.setFont(Font.font("Consolas", 40));
+
+        Label pauseVolLabel = new Label("BGM_VOL:"); pauseVolLabel.setTextFill(Color.CYAN); pauseVolLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14)); pauseVolumeSlider = new Slider(0, 1, 0.5); pauseVolumeSlider.setMaxWidth(200); pauseVolumeSlider.setStyle("-fx-cursor: hand;"); HBox pauseVolBox = new HBox(10, pauseVolLabel, pauseVolumeSlider); pauseVolBox.setAlignment(Pos.CENTER);
+        Label pauseSfxLabel = new Label("SFX_VOL:"); pauseSfxLabel.setTextFill(Color.CYAN); pauseSfxLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 14)); pauseSfxSlider = new Slider(0, 1, 0.5); pauseSfxSlider.setMaxWidth(200); pauseSfxSlider.setStyle("-fx-cursor: hand;"); HBox pauseSfxBox = new HBox(10, pauseSfxLabel, pauseSfxSlider); pauseSfxBox.setAlignment(Pos.CENTER);
+
+        menuVolumeSlider.valueProperty().bindBidirectional(pauseVolumeSlider.valueProperty()); menuVolumeSlider.valueProperty().addListener((obs, oldVal, newVal) -> { app.setBgmVolume(newVal.doubleValue()); });
+        menuSfxSlider.valueProperty().bindBidirectional(pauseSfxSlider.valueProperty()); menuSfxSlider.valueProperty().addListener((obs, oldVal, newVal) -> { app.setSfxVolume(newVal.doubleValue()); });
+
+        Button btnResume = createStyledButton("RESUME"); btnResume.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; pauseLayer.setVisible(false); }); Button btnMenuPause = createStyledButton("ABORT TO MENU"); btnMenuPause.setOnAction(e -> app.returnToMenu()); pauseBox.getChildren().addAll(pauseTitle, pauseVolBox, pauseSfxBox, btnResume, btnMenuPause); pauseLayer.getChildren().add(pauseBox); pauseLayer.setVisible(false);
         gameOverLayer = new StackPane(); gameOverLayer.setStyle("-fx-background-color: rgba(139, 0, 0, 0.95);"); VBox overBox = new VBox(20); overBox.setAlignment(Pos.CENTER); gameOverReasonLabel = new Label(""); gameOverReasonLabel.setTextFill(Color.RED); gameOverReasonLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 45)); gameOverStatsLabel = new Label(""); gameOverStatsLabel.setTextFill(Color.WHITE); gameOverStatsLabel.setFont(Font.font("Consolas", 18)); gameOverStatsLabel.setTextAlignment(TextAlignment.CENTER); Button btnRestart = createStyledButton("SYSTEM REBOOT"); btnRestart.setOnAction(e -> app.resetGame()); Button btnMenuDead = createStyledButton("RETURN TO MENU"); btnMenuDead.setOnAction(e -> app.returnToMenu()); overBox.getChildren().addAll(gameOverReasonLabel, gameOverStatsLabel, btnRestart, btnMenuDead); gameOverLayer.getChildren().add(overBox); gameOverLayer.setVisible(false);
         errorImage1 = loadEmergeErrorImage("error1.jpg"); errorImage2 = loadEmergeErrorImage("error2.jpg"); flashOverlay = new Rectangle(800, 600, Color.TRANSPARENT); flashOverlay.setMouseTransparent(true); scanline = new Rectangle(800, 6, Color.CYAN); scanline.setVisible(false); scanline.setMouseTransparent(true);
         Node[] allLayers = { matrixCanvas, gameLayer, crtOverlay, firewallLayer, interceptLayer, decryptLayer, bugCatchLayer, surgeLayer, routeLayer, shopLayer, introLayer, gameOverLayer, bossIntroLayer, bossFailLayer, talentLayer, pauseLayer, menuLayer, errorImage1, errorImage2, flashOverlay, scanline }; for (Node layer : allLayers) if (layer != null) root.getChildren().add(layer);
@@ -102,12 +172,72 @@ public class UIManager {
     }
 
     public void playBossIntroAnimation(String title, String codeName, Color themeColor, Runnable onFinished) { bossIntroLayer.setVisible(true); bossIntroTitle.setText(title); bossIntroName.setText(""); bossIntroName.setEffect(new DropShadow(20, themeColor)); Timeline timeline = new Timeline(); for (int i = 0; i <= codeName.length(); i++) { final String text = codeName.substring(0, i); timeline.getKeyFrames().add(new KeyFrame(Duration.millis(i * 100), e -> { bossIntroName.setText(text); })); } timeline.getKeyFrames().add(new KeyFrame(Duration.millis(codeName.length() * 100 + 1500), e -> { bossIntroLayer.setVisible(false); if (onFinished != null) onFinished.run(); })); timeline.play(); }
+    private void drawLightningBoltOnCanvas(GraphicsContext gc) {
+        double currentX = 100 + engine.random.nextDouble() * 600; // 閃電起始點 (偏中間)
+        double currentY = 0;
 
+        gc.setStroke(Color.WHITE); // 閃電核心為純白
+        gc.setEffect(neonGlowCyan); // 外圍帶有強烈的青藍色光暈
+
+        for (int step = 0; step < 15; step++) {
+            // 隨機決定下一段閃電的轉折點
+            double nextX = currentX + (engine.random.nextDouble() - 0.5) * 150;
+            double nextY = currentY + 30 + engine.random.nextDouble() * 50;
+
+            // 畫出主幹 (較粗)
+            gc.setLineWidth(3 + engine.random.nextDouble() * 4);
+            gc.strokeLine(currentX, currentY, nextX, nextY);
+
+            // 30% 機率產生細小的分支閃電
+            if (engine.random.nextDouble() < 0.3) {
+                double branchX = currentX;
+                double branchY = currentY;
+                for (int b = 0; b < 4; b++) {
+                    double nX = branchX + (engine.random.nextDouble() - 0.5) * 120;
+                    double nY = branchY + 20 + engine.random.nextDouble() * 40;
+                    gc.setLineWidth(1 + engine.random.nextDouble() * 2);
+                    gc.strokeLine(branchX, branchY, nX, nY);
+                    branchX = nX;
+                    branchY = nY;
+                }
+            }
+            currentX = nextX; currentY = nextY;
+            if (currentY > 600) break;
+        }
+        gc.setEffect(null); // 重置發光效果以免影響代碼雨
+
+        // 伴隨閃電的強烈青白全螢幕閃光
+        playFlashEffect(Color.rgb(180, 255, 255, 0.45), 200);
+
+        // 如果想加入雷聲，可以把這行註解打開 (需確保有 thunder.mp3)
+        // app.playGunshotSound();
+    }
     public void drawMatrixRain() {
         if (gc == null) return; gc.setFill(Color.rgb(11, 12, 16, 0.18)); gc.fillRect(0, 0, 800, 600); gc.setFont(Font.font("Consolas", FontWeight.BOLD, 16));
         boolean isBoss = engine.isBossFight; boolean isOverheated = engine.isOverheated; boolean isTraced = engine.isBeingTraced;
+
+        boolean isMenu = (engine.currentState != HackEngine.GameState.PLAYING && engine.currentState != HackEngine.GameState.PAUSED && engine.currentState != HackEngine.GameState.INTRO);
+
+        // === 駭客化修改：大廳隨機觸發白虎風格的真實閃電 (每幀約 1.2% 機率) ===
+        if (isMenu && engine.random.nextDouble() < 0.012) {
+            drawLightningBoltOnCanvas(gc);
+        }
+
         for (int i = 0; i < matrixCols; i++) {
-            String text = String.valueOf((char)(engine.random.nextInt(94) + 33)); Color charColor = Color.rgb(0, 255, 204, 0.8);
+            String text;
+            Color charColor;
+
+            if (isMenu) {
+                // 選單狀態：改成隨機跳動的 ASCII 亂碼
+                text = String.valueOf((char)(engine.random.nextInt(94) + 33));
+                // 提高不透明度到 1.0，使用更刺眼、更明顯的電光藍色
+                charColor = Color.rgb(0, 210, 255, 1.0);
+            } else {
+                // 遊戲狀態：原本明亮的青綠色 ASCII 亂碼
+                text = String.valueOf((char)(engine.random.nextInt(94) + 33));
+                charColor = Color.rgb(0, 255, 204, 0.8);
+            }
+
             if (isBoss) {
                 if (engine.currentBossType == HackEngine.BossType.PULSE) charColor = Color.web("#FF007F");
                 else if (engine.currentBossType == HackEngine.BossType.SURGE) charColor = Color.YELLOW;
@@ -122,9 +252,26 @@ public class UIManager {
             if (isTraced && engine.random.nextInt(8) == 0) { text = "⚠"; charColor = Color.RED; }
             double x = i * 20; double y = dropY[i];
             if (isOverheated) { charColor = Color.rgb(255, 150, 0, 0.9); x += (engine.random.nextDouble() - 0.5) * 6.0; } else if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { x += (engine.random.nextDouble() - 0.5) * 4.0; }
+
             gc.setFill(charColor); gc.fillText(text, x, y);
-            double currentSpeed = dropSpeed[i]; if (isBoss) { currentSpeed *= 1.4; if (engine.bossPhase == 3) currentSpeed *= 1.5; } if (isOverheated) currentSpeed *= 0.5;
-            dropY[i] += currentSpeed; if (dropY[i] > 600 && engine.random.nextDouble() > 0.92) { dropY[i] = 0; dropSpeed[i] = 1.5 + engine.random.nextDouble() * 2.5; }
+
+            double currentSpeed = dropSpeed[i];
+            // 把大廳的代碼雨速度調快，讓雨粒感更明顯更強烈
+            if (isMenu) currentSpeed *= 0.95;
+
+            if (isBoss) { currentSpeed *= 1.4; if (engine.bossPhase == 3) currentSpeed *= 1.5; } if (isOverheated) currentSpeed *= 0.5;
+            dropY[i] += currentSpeed;
+
+            if (dropY[i] > 600 && engine.random.nextDouble() > 0.92) {
+                dropY[i] = 0;
+                dropSpeed[i] = (isMenu ? 1.0 : 1.5) + engine.random.nextDouble() * 2.5;
+            }
+        }
+    }
+    //安全更新字串的方法，阻斷多餘的 JavaFX 渲染
+    private void setLabelTextIfChanged(Label label, String newText) {
+        if (!newText.equals(label.getText())) {
+            label.setText(newText);
         }
     }
 
@@ -133,11 +280,53 @@ public class UIManager {
     public void shakeScreen() { TranslateTransition tt = new TranslateTransition(Duration.millis(40), root); tt.setFromX(0f); tt.setByX(5f); tt.setCycleCount(4); tt.setAutoReverse(true); tt.playFromStart(); }
     public void playFlashEffect(Color c, double durationMillis) { flashOverlay.setFill(c); FadeTransition ft = new FadeTransition(Duration.millis(durationMillis), flashOverlay); ft.setFromValue(0.25); ft.setToValue(0.0); ft.play(); }
 
-    private void setupNeonButtonAnimation(Button btn, String primaryColor, String glowBgColor) { btn.setStyle("-fx-background-color: black; -fx-text-fill: " + primaryColor + "; -fx-border-color: " + primaryColor + "; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-radius: 5; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;"); DropShadow btnGlow = new DropShadow(8, Color.web(primaryColor)); btn.setOnMouseEntered(e -> { btn.setEffect(btnGlow); btn.setStyle("-fx-background-color: " + glowBgColor + "; -fx-text-fill: white; -fx-border-color: " + primaryColor + "; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-radius: 5; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;"); ScaleTransition st = new ScaleTransition(Duration.millis(100), btn); st.setToX(1.05); st.setToY(1.05); st.play(); }); btn.setOnMouseExited(e -> { btn.setEffect(null); btn.setStyle("-fx-background-color: black; -fx-text-fill: " + primaryColor + "; -fx-border-color: " + primaryColor + "; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-radius: 5; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;"); ScaleTransition st = new ScaleTransition(Duration.millis(100), btn); st.setToX(1.0); st.setToY(1.0); st.play(); }); btn.setOnMousePressed(e -> { ScaleTransition st = new ScaleTransition(Duration.millis(50), btn); st.setToX(0.95); st.setToY(0.95); st.play(); }); btn.setOnMouseReleased(e -> { ScaleTransition st = new ScaleTransition(Duration.millis(50), btn); st.setToX(1.05); st.setToY(1.05); st.play(); }); }
+    private void setupNeonButtonAnimation(Button btn, String primaryColor, String glowBgColor) {
+        btn.setStyle("-fx-background-color: black; -fx-text-fill: " + primaryColor + "; -fx-border-color: " + primaryColor + "; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-radius: 5; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;");
+        DropShadow btnGlow = new DropShadow(8, Color.web(primaryColor));
+        btn.setOnMouseEntered(e -> {
+            app.playHoverSound(); // 滑鼠移入時播放音效
+            btn.setEffect(btnGlow);
+            btn.setStyle("-fx-background-color: " + glowBgColor + "; -fx-text-fill: white; -fx-border-color: " + primaryColor + "; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-radius: 5; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;");
+            ScaleTransition st = new ScaleTransition(Duration.millis(100), btn);
+            st.setToX(1.05);
+            st.setToY(1.05);
+            st.play();
+        });
+        btn.setOnMouseExited(e -> {
+            btn.setEffect(null);
+            btn.setStyle("-fx-background-color: black; -fx-text-fill: " + primaryColor + "; -fx-border-color: " + primaryColor + "; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-radius: 5; -fx-font-family: 'Consolas'; -fx-font-size: 16px; -fx-cursor: hand;");
+            ScaleTransition st = new ScaleTransition(Duration.millis(100), btn);
+            st.setToX(1.0);
+            st.setToY(1.0);
+            st.play();
+        });
+        btn.setOnMousePressed(e -> {
+            app.playClickSound(); // 新增這行：滑鼠點擊下去時播放音效
+            ScaleTransition st = new ScaleTransition(Duration.millis(50), btn);
+            st.setToX(0.95);
+            st.setToY(0.95);
+            st.play();
+        });
+        btn.setOnMouseReleased(e -> {
+            ScaleTransition st = new ScaleTransition(Duration.millis(50), btn);
+            st.setToX(1.05);
+            st.setToY(1.05);
+            st.play();
+        });
+    }
 
     public void triggerErrorEffect(ImageView errorImg, int type) { if (errorImg == null || errorImg.getImage() == null) return; errorImg.setVisible(true); errorImg.setOpacity(0.0); errorImg.setScaleX(0.0); errorImg.setScaleY(0.0); app.playErrorSound(type); shakeScreen(); playFlashEffect(Color.rgb(255, 0, 0, 0.3), 300); FadeTransition fadeIn = new FadeTransition(Duration.millis(150), errorImg); fadeIn.setFromValue(0.0); fadeIn.setToValue(0.6); ScaleTransition scaleUp = new ScaleTransition(Duration.millis(150), errorImg); scaleUp.setFromX(0.0); scaleUp.setFromY(0.0); scaleUp.setToX(1.0); scaleUp.setToY(1.0); ParallelTransition emerge = new ParallelTransition(fadeIn, scaleUp); PauseTransition hold = new PauseTransition(Duration.millis(400)); FadeTransition fadeOut = new FadeTransition(Duration.millis(150), errorImg); fadeOut.setFromValue(0.6); fadeOut.setToValue(0.0); ScaleTransition scaleDown = new ScaleTransition(Duration.millis(150), errorImg); scaleDown.setToX(0.0); scaleDown.setToY(0.0); ParallelTransition submerge = new ParallelTransition(fadeOut, scaleDown); SequentialTransition seq = new SequentialTransition(emerge, hold, submerge); seq.setOnFinished(e -> errorImg.setVisible(false)); seq.play(); }
-    public void updateTraceUI(double traceLevel) { if (traceLevel > 0) { traceWarningLabel.setVisible(true); int bars = (int)(Math.min(1.0, traceLevel) * 20); int dots = 20 - bars; traceWarningLabel.setText(String.format("⚠ 警告：反追蹤系統鎖定中 [%s%s] %d%% ⚠", "|".repeat(bars), ".".repeat(dots), (int)(traceLevel*100))); traceWarningLabel.setEffect(new DropShadow(10, Color.RED)); } else { traceWarningLabel.setVisible(false); } }
-
+    public void updateTraceUI(double traceLevel) {
+        if (traceLevel > 0) {
+            traceWarningLabel.setVisible(true);
+            int bars = (int)(Math.min(1.0, traceLevel) * 20); int dots = 20 - bars;
+            String newText = String.format("⚠ 警告：反追蹤系統鎖定中 [%s%s] %d%% ⚠", "|".repeat(bars), ".".repeat(dots), (int)(traceLevel*100));
+            setLabelTextIfChanged(traceWarningLabel, newText);
+            traceWarningLabel.setEffect(new DropShadow(10, Color.RED));
+        } else {
+            traceWarningLabel.setVisible(false);
+        }
+    }
     public void updateFirewallUI() {
         if (engine.isBossFight && engine.currentBossType == HackEngine.BossType.SPECTER && engine.bossPhase == 1) { firewallBarDisplay.setText(engine.firewallProgress > 0.9 ? "[! ! ! ! ! !]" : "[? ? ? ? ? ?]"); firewallBarDisplay.setTextFill(Color.DARKGRAY); firewallBarDisplay.setEffect(null); return; }
         if (engine.isBossFight && engine.currentBossType == HackEngine.BossType.HYDRA && engine.bossPhase == 1) { StringBuilder sb = new StringBuilder(); for(int i=0; i<3; i++) { int bars = (int) Math.max(0, Math.min(10, engine.hydraWalls[i] * 10)); sb.append(i == engine.activeHydraHead ? "▶ " : "  "); sb.append("[").append("|".repeat(bars)).append(".".repeat(10-bars)).append("]"); if(i < 2) sb.append("\n"); } firewallBarDisplay.setText(sb.toString()); firewallBarDisplay.setFont(Font.font("Consolas", FontWeight.BOLD, 20)); firewallBarDisplay.setTextFill(Color.GREENYELLOW); return; }
@@ -270,7 +459,17 @@ public class UIManager {
     private void addShopHoverDesc(Button btn, String desc) { btn.hoverProperty().addListener((obs, oldVal, newVal) -> { if (newVal) { shopDescLabel.setText(desc); shopDescLabel.setTextFill(Color.WHITE); } else { shopDescLabel.setText(">>> 游標懸停以查看組件說明 <<<"); shopDescLabel.setTextFill(Color.LIGHTGRAY); } }); }
     private void buildTalentLayerStructure() { talentLayer = new StackPane(); talentLayer.setStyle("-fx-background-color: #0d0214;"); treeGroup = new Group(); StackPane treePane = new StackPane(treeGroup); treePane.setAlignment(Pos.CENTER); treePane.setPrefSize(700, 320); descBox = new VBox(5); descBox.setAlignment(Pos.CENTER); descBox.setStyle("-fx-background-color: #160826; -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 15; -fx-max-width: 550;"); talentNameLabel = new Label(">>> 點擊任意節點解密核心天賦 <<<"); talentNameLabel.setTextFill(Color.CYAN); talentNameLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 16)); talentEffectLabel = new Label("選取節點以加載組件加成數據。"); talentEffectLabel.setTextFill(Color.LIGHTGRAY); talentEffectLabel.setFont(Font.font("Consolas", 14)); talentCostLabel = new Label(""); talentCostLabel.setTextFill(Color.GOLD); talentCostLabel.setFont(Font.font("Consolas", 14)); btnUpgradeTalent = createStyledButton(">>> 寫入天賦線路 <<<"); setupNeonButtonAnimation(btnUpgradeTalent, "#FF007F", "rgba(255, 0, 127, 0.2)"); btnUpgradeTalent.setVisible(false); descBox.getChildren().addAll(talentNameLabel, talentEffectLabel, talentCostLabel, btnUpgradeTalent); VBox talentLayout = new VBox(15); talentLayout.setAlignment(Pos.CENTER); Label title = new Label("== CYBERNETIC TALENT TREE =="); title.setTextFill(Color.web("#FF007F")); title.setFont(Font.font("Consolas", FontWeight.BOLD, 35)); title.setEffect(neonGlowPink); talentCoinDisplay = new Label("LEGACY COINS: 0 ¢"); talentCoinDisplay.setTextFill(Color.GOLD); talentCoinDisplay.setFont(Font.font("Consolas", 24)); Button btnBack = createStyledButton("<<< RETURN TO MENU"); btnBack.setOnAction(e -> app.closeTalentTree()); talentLayout.getChildren().addAll(title, talentCoinDisplay, treePane, descBox, btnBack); talentLayer.getChildren().add(talentLayout); talentLayer.setVisible(false); drawTalentTreeNodes(); }
     private void drawTalentTreeNodes() { treeGroup.getChildren().clear(); Group lineLayer = new Group(); Group nodeLayer = new Group(); treeGroup.getChildren().addAll(lineLayer, nodeLayer); StackPane corePane = new StackPane(); corePane.setMinSize(80, 80); corePane.setMaxSize(80, 80); Circle coreCircle = new Circle(32); coreCircle.setStrokeWidth(3); coreCircle.setStroke(Color.CYAN); coreCircle.setFill(Color.rgb(0, 40, 50)); Label coreLabel = new Label("🌐"); coreLabel.setFont(Font.font("Segoe UI Emoji", 18)); coreLabel.setTextFill(Color.WHITE); corePane.getChildren().addAll(coreCircle, coreLabel); corePane.setTranslateX(-40); corePane.setTranslateY(-40); corePane.setEffect(neonGlowCyan); nodeLayer.getChildren().add(corePane); buildTalentBranch(1, 3, 270, 70, new Color[]{Color.CYAN, Color.rgb(0, 40, 50)}, 0, 0, "⚡", lineLayer, nodeLayer); buildTalentBranch(2, 5, 150, 70, new Color[]{Color.LIME, Color.rgb(0, 40, 0)}, 0, 0, "🔓", lineLayer, nodeLayer); buildTalentBranch(3, 3, 30, 70, new Color[]{Color.ORANGE, Color.rgb(40, 20, 0)}, 0, 0, "⏳", lineLayer, nodeLayer); }
-    private void buildTalentBranch(int id, int maxLevel, double angle, double startRadius, Color[] colors, double parentX, double parentY, String iconSymbol, Group lineLayer, Group nodeLayer) { double currentParentX = parentX; double currentParentY = parentY; double labelR = startRadius + (maxLevel * 52) + 25; double lx = labelR * Math.cos(Math.toRadians(angle)); double ly = labelR * Math.sin(Math.toRadians(angle)); Label branchLabel = new Label(id == 1 ? "[ EMP MOD ]" : (id == 2 ? "[ FW BYPASS ]" : "[ BUFFER EXP ]")); branchLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 10)); branchLabel.setTextFill(colors[0]); branchLabel.setAlignment(Pos.CENTER); branchLabel.setPrefWidth(150); StackPane labelPane = new StackPane(branchLabel); labelPane.setTranslateX(lx - 75); labelPane.setTranslateY(ly - 10); nodeLayer.getChildren().add(labelPane); for (int i = 1; i <= maxLevel; i++) { double r = startRadius + (i-1) * 52; double x = r * Math.cos(Math.toRadians(angle)); double y = r * Math.sin(Math.toRadians(angle)); Color strokeColor = unlocked(id, i) ? colors[0] : (isNextAvailable(id, i) ? Color.LIGHTGRAY : Color.rgb(60, 60, 60)); Color fillColor = unlocked(id, i) ? colors[1] : (isNextAvailable(id, i) ? Color.rgb(30, 30, 35) : Color.rgb(15, 15, 15)); Line line = new Line(currentParentX, currentParentY, x, y); line.setStrokeWidth(3); line.setStroke(unlocked(id, i) ? colors[0] : Color.rgb(70, 70, 70)); lineLayer.getChildren().add(line); StackPane nodePane = new StackPane(); nodePane.setMinSize(40, 40); nodePane.setMaxSize(40, 40); Circle c = new Circle(18); c.setStrokeWidth(3); c.setStroke(strokeColor); c.setFill(fillColor); Button btn = new Button(iconSymbol); btn.setFont(Font.font("Segoe UI Emoji", 14)); btn.setTextFill(unlocked(id, i) ? Color.WHITE : (isNextAvailable(id, i) ? colors[0] : Color.rgb(80, 80, 80))); btn.setStyle("-fx-background-color: transparent; -fx-padding: 0; -fx-cursor: hand;"); final int branchId = id; final int nodeLevel = i; btn.setOnAction(e -> app.selectTalentNode(branchId, nodeLevel)); nodePane.getChildren().addAll(c, btn); nodePane.setTranslateX(x - 20); nodePane.setTranslateY(y - 20); if (unlocked(id, i)) { DropShadow branchGlow = new DropShadow(10, colors[0]); nodePane.setEffect(branchGlow); } nodeLayer.getChildren().add(nodePane); currentParentX = x; currentParentY = y; } }
+    private void buildTalentBranch(int id, int maxLevel, double angle, double startRadius, Color[] colors, double parentX, double parentY, String iconSymbol, Group lineLayer, Group nodeLayer) {
+        double currentParentX = parentX; double currentParentY = parentY; double labelR = startRadius + (maxLevel * 52) + 25; double lx = labelR * Math.cos(Math.toRadians(angle)); double ly = labelR * Math.sin(Math.toRadians(angle)); Label branchLabel = new Label(id == 1 ? "[ EMP MOD ]" : (id == 2 ? "[ FW BYPASS ]" : "[ BUFFER EXP ]")); branchLabel.setFont(Font.font("Consolas", FontWeight.BOLD, 10)); branchLabel.setTextFill(colors[0]); branchLabel.setAlignment(Pos.CENTER); branchLabel.setPrefWidth(150); StackPane labelPane = new StackPane(branchLabel); labelPane.setTranslateX(lx - 75); labelPane.setTranslateY(ly - 10); nodeLayer.getChildren().add(labelPane);
+        for (int i = 1; i <= maxLevel; i++) {
+            double r = startRadius + (i-1) * 52; double x = r * Math.cos(Math.toRadians(angle)); double y = r * Math.sin(Math.toRadians(angle)); Color strokeColor = unlocked(id, i) ? colors[0] : (isNextAvailable(id, i) ? Color.LIGHTGRAY : Color.rgb(60, 60, 60)); Color fillColor = unlocked(id, i) ? colors[1] : (isNextAvailable(id, i) ? Color.rgb(30, 30, 35) : Color.rgb(15, 15, 15)); Line line = new Line(currentParentX, currentParentY, x, y); line.setStrokeWidth(3); line.setStroke(unlocked(id, i) ? colors[0] : Color.rgb(70, 70, 70)); lineLayer.getChildren().add(line); StackPane nodePane = new StackPane(); nodePane.setMinSize(40, 40); nodePane.setMaxSize(40, 40); Circle c = new Circle(18); c.setStrokeWidth(3); c.setStroke(strokeColor); c.setFill(fillColor); Button btn = new Button(iconSymbol); btn.setFont(Font.font("Segoe UI Emoji", 14)); btn.setTextFill(unlocked(id, i) ? Color.WHITE : (isNextAvailable(id, i) ? colors[0] : Color.rgb(80, 80, 80))); btn.setStyle("-fx-background-color: transparent; -fx-padding: 0; -fx-cursor: hand;");
+
+            btn.setOnMouseEntered(e -> app.playHoverSound()); // 天賦節點滑鼠移入音效
+            btn.setOnMousePressed(e -> app.playClickSound()); // 新增這行：天賦節點點擊音效
+
+            final int branchId = id; final int nodeLevel = i; btn.setOnAction(e -> app.selectTalentNode(branchId, nodeLevel)); nodePane.getChildren().addAll(c, btn); nodePane.setTranslateX(x - 20); nodePane.setTranslateY(y - 20); if (unlocked(id, i)) { DropShadow branchGlow = new DropShadow(10, colors[0]); nodePane.setEffect(branchGlow); } nodeLayer.getChildren().add(nodePane); currentParentX = x; currentParentY = y;
+        }
+    }
     public void updateComboDisplay(double multiplier) { comboDisplay.setText(String.format("COMBO: x%.1f", multiplier)); if (multiplier >= 3.0) { comboDisplay.setTextFill(Color.web("#FF007F")); comboDisplay.setEffect(neonGlowPink); uiBorder.setStyle(engine.random.nextInt(3) == 0 ? "-fx-text-fill: #FF007F; -fx-effect: dropshadow(three-pass-box, #FF007F, 10, 0, 0, 0);" : "-fx-text-fill: rgb(0, 255, 204); -fx-effect: none;"); } else if (multiplier >= 2.0) { comboDisplay.setTextFill(Color.ORANGE); comboDisplay.setEffect(new DropShadow(10, Color.ORANGE)); uiBorder.setStyle("-fx-text-fill: orange;"); } else { comboDisplay.setTextFill(Color.YELLOW); comboDisplay.setEffect(null); uiBorder.setStyle("-fx-text-fill: rgba(0, 255, 204, 0.5);"); } }
     public void playComboHitEffect(double multiplier) { if (multiplier < 2.0) return; double intensity = (multiplier >= 3.0) ? 5.0 : 2.5; TranslateTransition tt = new TranslateTransition(Duration.millis(30), gameLayer); tt.setFromX((engine.random.nextDouble() - 0.5) * intensity); tt.setFromY((engine.random.nextDouble() - 0.5) * intensity); tt.setToX(0f); tt.setToY(0f); tt.playFromStart(); }
     public void playDescFadeIn() { FadeTransition ft = new FadeTransition(Duration.millis(250), descBox); ft.setFromValue(0.2); ft.setToValue(1.0); ft.play(); }
@@ -283,16 +482,17 @@ public class UIManager {
     private boolean isNextAvailable(int id, int level) { if (id == 1) return p.talentStartEMP == level - 1; if (id == 2) return p.talentWeakFW == level - 1; if (id == 3) return p.talentFlashTime == level - 1; return false; }
     public void updateASCIIProgress() {
         if (engine.isBossFight) {
-            progressDisplay.setText("LEVEL " + p.currentLevel + " [ SYSTEM OVERRIDE ]");
-            if (engine.currentBossType == HackEngine.BossType.SURGE) statusLabel.setText(">>> SURGE PROTOCOL INITIATED <<<");
-            else statusLabel.setText(">>> BOSS ENGAGED : PHASE " + engine.bossPhase);
+            setLabelTextIfChanged(progressDisplay, "LEVEL " + p.currentLevel + " [ SYSTEM OVERRIDE ]");
+            if (engine.currentBossType == HackEngine.BossType.SURGE) setLabelTextIfChanged(statusLabel, ">>> SURGE PROTOCOL INITIATED <<<");
+            else setLabelTextIfChanged(statusLabel, ">>> BOSS ENGAGED : PHASE " + engine.bossPhase);
         } else {
             StringBuilder sb = new StringBuilder("["); int fill = (int) Math.round(engine.progress * 20); int percentage = (int) Math.round(engine.progress * 100);
             for (int i=1; i<=20; i++) { if (i <= fill) sb.append("|"); else sb.append("."); }
-            sb.append("] ").append(percentage).append("%"); progressDisplay.setText("LEVEL " + p.currentLevel + " " + sb.toString());
+            sb.append("] ").append(percentage).append("%");
+            setLabelTextIfChanged(progressDisplay, "LEVEL " + p.currentLevel + " " + sb.toString());
             if (!engine.isHacking && !engine.isFirewallFight && !engine.isBugCatchFight && !engine.isInterceptFight && !engine.isDecryptFight && !engine.isSurgeFight)
-                statusLabel.setText(">>> WARNING: LOSING PROGRESS... [RELEASED]");
-            else if (engine.isHacking) statusLabel.setText(">>> INJECTING... BREACHING LAYER " + (engine.currentSegment+1));
+                setLabelTextIfChanged(statusLabel, ">>> WARNING: LOSING PROGRESS... [RELEASED]");
+            else if (engine.isHacking) setLabelTextIfChanged(statusLabel, ">>> INJECTING... BREACHING LAYER " + (engine.currentSegment+1));
         }
     }
     public void typeWriterUpdate(String t) { this.currentTargetText = t; statusLabel.setText(t); }
