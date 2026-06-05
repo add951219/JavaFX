@@ -41,7 +41,7 @@ public class UIManager {
     public Button btnUpgradeTalent, honeypotBtn;
     public VBox descBox;
     public ImageView errorImage1, errorImage2;
-    public Button btnShopClick, btnShopSpeed, btnShopCoolant, btnShopStealth, btnShopEmp, btnShopSlow;
+    public Button btnShopClick, btnShopSpeed, btnShopCoolant, btnShopStealth, btnShopEmp, btnShopSlow, btnShopMiner, btnShopShield, btnShopAutoSolve, btnShopOverload;
     public Slider menuVolumeSlider, pauseVolumeSlider;
     public Slider menuSfxSlider, pauseSfxSlider;
 
@@ -484,40 +484,47 @@ public class UIManager {
     }
     private void buildShopLayer() {
         shopLayer = new StackPane();
-        // 1. 黑市專屬的深紫色半透明背景
         shopLayer.setStyle("-fx-background-color: rgba(10, 5, 10, 0.80);");
 
-        VBox shopBox = new VBox(15); shopBox.setAlignment(Pos.CENTER);
-        // 2. 黑市全息投影視窗 (粉紅色系)
-        shopBox.setMaxSize(680, 560);
-        shopBox.setStyle("-fx-background-color: rgba(20, 5, 20, 0.85); -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 25; -fx-border-style: solid;");
+        // 微調間距與大小以容納 5 排按鈕
+        VBox shopBox = new VBox(10); shopBox.setAlignment(Pos.CENTER);
+        shopBox.setMaxSize(720, 580);
+        shopBox.setStyle("-fx-background-color: rgba(20, 5, 20, 0.85); -fx-border-color: #FF007F; -fx-border-width: 2; -fx-padding: 20; -fx-border-style: solid;");
         shopBox.setEffect(new DropShadow(20, Color.web("#FF007F")));
 
-        Label shopTitle = new Label("--- BLACK MARKET ---"); shopTitle.setTextFill(Color.web("#FF007F")); shopTitle.setFont(Font.font("Consolas", 40)); shopTitle.setEffect(neonGlowPink);
-        coinDisplay = new Label("DarkCoins: 0 ¢"); coinDisplay.setTextFill(Color.GOLD); coinDisplay.setFont(Font.font("Consolas", 25));
+        Label shopTitle = new Label("--- BLACK MARKET ---"); shopTitle.setTextFill(Color.web("#FF007F")); shopTitle.setFont(Font.font("Consolas", 35)); shopTitle.setEffect(neonGlowPink);
+        coinDisplay = new Label("DarkCoins: 0 ¢"); coinDisplay.setTextFill(Color.GOLD); coinDisplay.setFont(Font.font("Consolas", 22));
 
-        shopDescLabel = new Label(">>> 游標懸停以查看組件說明 <<<"); shopDescLabel.setTextFill(Color.LIGHTGRAY); shopDescLabel.setFont(Font.font("Consolas", 14));
-        shopDescLabel.setStyle("-fx-background-color: rgba(30, 20, 40, 0.8); -fx-padding: 10; -fx-border-color: #00FFCC; -fx-border-width: 1; -fx-border-style: dashed; -fx-max-width: 550; -fx-wrap-text: true;");
-        shopDescLabel.setAlignment(Pos.CENTER); shopDescLabel.setTextAlignment(TextAlignment.CENTER); shopDescLabel.setMinHeight(60);
+        shopDescLabel = new Label(">>> 游標懸停以查看組件說明 <<<"); shopDescLabel.setTextFill(Color.LIGHTGRAY); shopDescLabel.setFont(Font.font("Consolas", 13));
+        shopDescLabel.setStyle("-fx-background-color: rgba(30, 20, 40, 0.8); -fx-padding: 8; -fx-border-color: #00FFCC; -fx-border-width: 1; -fx-border-style: dashed; -fx-max-width: 600; -fx-wrap-text: true;");
+        shopDescLabel.setAlignment(Pos.CENTER); shopDescLabel.setTextAlignment(TextAlignment.CENTER); shopDescLabel.setMinHeight(50);
 
-        // 3. 升級按鈕邏輯：加入購買成功與失敗的音效/震動回饋
-        btnShopClick = createShopButton("", 0); btnShopClick.setOnAction(e -> { int cost = 100 + p.upgClick * 150; if(p.buy(cost)) { p.upgClick++; updateShopUI(); app.playSuccessSound(); } else { app.playErrorSound(2); shakeScreen(); } }); addShopHoverDesc(btnShopClick, "「重磅封包」\n增加每次敲擊空白鍵對防火牆造成的破壞力。");
-        btnShopSpeed = createShopButton("", 0); btnShopSpeed.setOnAction(e -> { int cost = 150 + p.upgSpeed * 200; if(p.buy(cost)) { p.upgSpeed++; updateShopUI(); app.playSuccessSound(); } else { app.playErrorSound(2); shakeScreen(); } }); addShopHoverDesc(btnShopSpeed, "「注入加速」\n提升一般節點的自動注入速度，減少滑鼠長按時間。");
-        btnShopCoolant = createShopButton("", 0); btnShopCoolant.setOnAction(e -> { int cost = 120 + p.upgCoolant * 180; if(p.buy(cost)) { p.upgCoolant++; updateShopUI(); app.playSuccessSound(); } else { app.playErrorSound(2); shakeScreen(); } }); addShopHoverDesc(btnShopCoolant, "「散熱組件」\n降低敲擊空白鍵產生的熱量，延緩過熱鎖定。");
-        btnShopStealth = createShopButton("", 0); btnShopStealth.setOnAction(e -> { int cost = 120 + p.upgStealth * 180; if(p.buy(cost)) { p.upgStealth++; updateShopUI(); app.playSuccessSound(); } else { app.playErrorSound(2); shakeScreen(); } }); addShopHoverDesc(btnShopStealth, "「隱蔽路由」\n減緩在一般節點被反追蹤系統鎖定的速度。");
-        btnShopEmp = createShopButton("", 0); btnShopEmp.setOnAction(e -> { int cost = 200 + p.empCharges * 150; if(p.buy(cost)) { p.empCharges++; updateShopUI(); app.playSuccessSound(); } else { app.playErrorSound(2); shakeScreen(); } }); addShopHoverDesc(btnShopEmp, "「EMP 脈衝彈」\n消耗品。在防火牆戰鬥中按 [1] 瞬間炸毀大量防禦。");
-        btnShopSlow = createShopButton("", 0); btnShopSlow.setOnAction(e -> { int cost = 250 + p.slowCharges * 200; if(p.buy(cost)) { p.slowCharges++; updateShopUI(); app.playSuccessSound(); } else { app.playErrorSound(2); shakeScreen(); } }); addShopHoverDesc(btnShopSlow, "「超頻沙漏」\n消耗品。在限時戰鬥中按 [2] 延長駭入時間。");
+        btnShopClick = createShopButton("", 0); btnShopClick.setOnAction(e -> { int cost = 100 + p.upgClick * 150; if(p.buy(cost)) { p.upgClick++; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopClick, "「重磅封包」\n增加每次敲擊空白鍵對防火牆造成的破壞力。");
+        btnShopSpeed = createShopButton("", 0); btnShopSpeed.setOnAction(e -> { int cost = 150 + p.upgSpeed * 200; if(p.buy(cost)) { p.upgSpeed++; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopSpeed, "「注入加速」\n提升一般節點的自動注入速度，減少滑鼠長按時間。");
+        btnShopCoolant = createShopButton("", 0); btnShopCoolant.setOnAction(e -> { int cost = 120 + p.upgCoolant * 180; if(p.buy(cost)) { p.upgCoolant++; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopCoolant, "「散熱組件」\n降低敲擊空白鍵產生的熱量，延緩過熱鎖定。");
+        btnShopStealth = createShopButton("", 0); btnShopStealth.setOnAction(e -> { int cost = 120 + p.upgStealth * 180; if(p.buy(cost)) { p.upgStealth++; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopStealth, "「隱蔽路由」\n減緩在一般節點被反追蹤系統鎖定的速度。");
 
-        // 4. 將按鈕重新排版為雙欄，更有儀表板的科技感
+        // === 全新機制商品 ===
+        btnShopMiner = createShopButton("", 0); btnShopMiner.setOnAction(e -> { int cost = 150 + p.upgMiner * 200; if(p.buy(cost)) { p.upgMiner++; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopMiner, "「木馬挖礦程式」\n每過一關額外增加金幣收益，但會顯著加快被反追蹤鎖定的速度。");
+        btnShopShield = createShopButton("", 0); btnShopShield.setOnAction(e -> { if(p.hasTraceShield) return; int cost = 400; if(p.buy(cost)) { p.hasTraceShield = true; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopShield, "「備用快取護盾」\n持有時，若被反追蹤鎖定達 100%，將自動碎裂以完全抵禦該次進度扣除懲罰。");
+        btnShopAutoSolve = createShopButton("", 0); btnShopAutoSolve.setOnAction(e -> { int cost = 300 + p.autoSolveCharges * 150; if(p.buy(cost)) { p.autoSolveCharges++; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopAutoSolve, "「邏輯閘短路器」\n消耗品。在解密或攔截事件中按下快捷鍵 [3] ，直接強行自動破解通過。");
+        btnShopOverload = createShopButton("", 0); btnShopOverload.setOnAction(e -> { int cost = 350 + p.overloadCharges * 200; if(p.buy(cost)) { p.overloadCharges++; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopOverload, "「核心過載病毒」\n消耗品。在打擊防火牆時按 [4] 造成毀滅性巨量破壞，但核心將陷入長時間嚴重過熱。");
+
+        btnShopEmp = createShopButton("", 0); btnShopEmp.setOnAction(e -> { int cost = 200 + p.empCharges * 150; if(p.buy(cost)) { p.empCharges++; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopEmp, "「EMP 脈衝彈」\n消耗品。在防火牆戰鬥中按 [1] 瞬間炸毀大量防禦。");
+        btnShopSlow = createShopButton("", 0); btnShopSlow.setOnAction(e -> { int cost = 250 + p.slowCharges * 200; if(p.buy(cost)) { p.slowCharges++; updateShopUI(); app.playSuccessSound(); } else { app.playNoMoneySound(); shakeScreen(); } }); addShopHoverDesc(btnShopSlow, "「超頻沙漏」\n消耗品。在限時戰鬥中按 [2] 延長駭入時間。");
+
+        // 排版為雙欄 5 橫列
         HBox row1 = new HBox(15, btnShopClick, btnShopSpeed); row1.setAlignment(Pos.CENTER);
         HBox row2 = new HBox(15, btnShopCoolant, btnShopStealth); row2.setAlignment(Pos.CENTER);
-        HBox row3 = new HBox(15, btnShopEmp, btnShopSlow); row3.setAlignment(Pos.CENTER);
+        HBox row3 = new HBox(15, btnShopMiner, btnShopShield); row3.setAlignment(Pos.CENTER);
+        HBox row4 = new HBox(15, btnShopEmp, btnShopSlow); row4.setAlignment(Pos.CENTER);
+        HBox row5 = new HBox(15, btnShopAutoSolve, btnShopOverload); row5.setAlignment(Pos.CENTER);
 
         Button btnNext = createStyledButton(">>> INJECT PAYLOAD <<<");
         btnNext.setOnAction(e -> { engine.currentState = HackEngine.GameState.PLAYING; shopLayer.setVisible(false); gameLayer.setVisible(true); engine.resetEvents(); app.bossManager.checkBossLevel(); });
         setupNeonButtonAnimation(btnNext, "#00FFCC", "rgba(0, 255, 204, 0.2)");
 
-        shopBox.getChildren().addAll(shopTitle, coinDisplay, shopDescLabel, row1, row2, row3, btnNext);
+        shopBox.getChildren().addAll(shopTitle, coinDisplay, shopDescLabel, row1, row2, row3, row4, row5, btnNext);
         shopLayer.getChildren().add(shopBox); shopLayer.setVisible(false);
     }
     private void addShopHoverDesc(Button btn, String desc) { btn.hoverProperty().addListener((obs, oldVal, newVal) -> { if (newVal) { shopDescLabel.setText(desc); shopDescLabel.setTextFill(Color.WHITE); } else { shopDescLabel.setText(">>> 游標懸停以查看組件說明 <<<"); shopDescLabel.setTextFill(Color.LIGHTGRAY); } }); }
@@ -561,7 +568,27 @@ public class UIManager {
     public void playComboHitEffect(double multiplier) { if (multiplier < 2.0) return; double intensity = (multiplier >= 3.0) ? 5.0 : 2.5; TranslateTransition tt = new TranslateTransition(Duration.millis(30), gameLayer); tt.setFromX((engine.random.nextDouble() - 0.5) * intensity); tt.setFromY((engine.random.nextDouble() - 0.5) * intensity); tt.setToX(0f); tt.setToY(0f); tt.playFromStart(); }
     public void playDescFadeIn() { FadeTransition ft = new FadeTransition(Duration.millis(250), descBox); ft.setFromValue(0.2); ft.setToValue(1.0); ft.play(); }
     public void updateGlitchDisplay() { if (engine.activeGlitch == HackEngine.GlitchType.NONE) { glitchWarningLabel.setText(" [系統狀態：傳輸環境安全]"); glitchWarningLabel.setTextFill(Color.LIME); glitchWarningLabel.setEffect(null); } else if (engine.activeGlitch == HackEngine.GlitchType.NETWORK_LAG) { glitchWarningLabel.setText("⚠ 環境詛咒：[NETWORK_LAG] 延遲嚴重 ⚠"); glitchWarningLabel.setTextFill(Color.ORANGE); glitchWarningLabel.setEffect(new DropShadow(8, Color.ORANGE)); } else if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { glitchWarningLabel.setText("⚠ 環境詛咒：[VISUAL_DISTORTION] 視覺污染 ⚠"); glitchWarningLabel.setTextFill(Color.web("#FF007F")); glitchWarningLabel.setEffect(neonGlowPink); } else if (engine.activeGlitch == HackEngine.GlitchType.CORE_OVERLOAD) { glitchWarningLabel.setText("⚠ 環境詛咒：[CORE_OVERLOAD] 核心超載 ⚠"); glitchWarningLabel.setTextFill(Color.RED); glitchWarningLabel.setEffect(new DropShadow(12, Color.RED)); } }
-    public void updateShopUI() { coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢"); skillDisplay.setText("[1] EMP: " + p.empCharges + "   [2] SLOW: " + p.slowCharges); btnShopClick.setText(String.format("重磅封包 (Lv.%d) [Cost: %d¢]", p.upgClick, 100 + p.upgClick * 150)); btnShopSpeed.setText(String.format("注入加速 (Lv.%d) [Cost: %d¢]", p.upgSpeed, 150 + p.upgSpeed * 200)); btnShopCoolant.setText(String.format("散熱組件 (Lv.%d) [Cost: %d¢]", p.upgCoolant, 120 + p.upgCoolant * 180)); btnShopStealth.setText(String.format("隱蔽路由 (Lv.%d) [Cost: %d¢]", p.upgStealth, 120 + p.upgStealth * 180)); btnShopEmp.setText(String.format("EMP 脈衝彈 [Cost: %d¢]", 200 + p.empCharges * 150)); btnShopSlow.setText(String.format("超頻沙漏 [Cost: %d¢]", 250 + p.slowCharges * 200)); if (engine.isBossLevel(p.currentLevel + 1)) { shopDescLabel.setText("⚠ WARNING: BOSS ENCOUNTER IMMINENT ⚠\n建議補滿所有控制與防禦組件！"); shopDescLabel.setTextFill(Color.RED); shopDescLabel.setEffect(new DropShadow(5, Color.RED)); } else { shopDescLabel.setText(">>> 游標懸停以查看組件說明 <<<"); shopDescLabel.setTextFill(Color.LIGHTGRAY); shopDescLabel.setEffect(null); } }
+    public void updateShopUI() {
+        coinDisplay.setText("DarkCoins: " + p.darkCoins + " ¢");
+        // 更新底部常駐技能列
+        skillDisplay.setText(String.format("[1] EMP:%d  [2] SLOW:%d  [3] SKIP:%d  [4] VIRUS:%d  %s", p.empCharges, p.slowCharges, p.autoSolveCharges, p.overloadCharges, p.hasTraceShield ? "[🛡 SHIELD: ON]" : "[🛡 SHIELD: OFF]"));
+
+        btnShopClick.setText(String.format("重磅封包 (Lv.%d) [Cost: %d¢]", p.upgClick, 100 + p.upgClick * 150));
+        btnShopSpeed.setText(String.format("注入加速 (Lv.%d) [Cost: %d¢]", p.upgSpeed, 150 + p.upgSpeed * 200));
+        btnShopCoolant.setText(String.format("散熱組件 (Lv.%d) [Cost: %d¢]", p.upgCoolant, 120 + p.upgCoolant * 180));
+        btnShopStealth.setText(String.format("隱蔽路由 (Lv.%d) [Cost: %d¢]", p.upgStealth, 120 + p.upgStealth * 180));
+
+        btnShopMiner.setText(String.format("木馬挖礦 (Lv.%d) [Cost: %d¢]", p.upgMiner, 150 + p.upgMiner * 200));
+        btnShopShield.setText(p.hasTraceShield ? "備用快取護盾 [已裝備]" : "備用快取護盾 [Cost: 400¢]");
+        btnShopAutoSolve.setText(String.format("邏輯短路器 [Cost: %d¢]", 300 + p.autoSolveCharges * 150));
+        btnShopOverload.setText(String.format("核心過載病毒 [Cost: %d¢]", 350 + p.overloadCharges * 200));
+
+        btnShopEmp.setText(String.format("EMP 脈衝彈 [Cost: %d¢]", 200 + p.empCharges * 150));
+        btnShopSlow.setText(String.format("超頻沙漏 [Cost: %d¢]", 250 + p.slowCharges * 200));
+
+        if (engine.isBossLevel(p.currentLevel + 1)) { shopDescLabel.setText("⚠ WARNING: BOSS ENCOUNTER IMMINENT ⚠\n建議補滿所有控制與防禦組件！"); shopDescLabel.setTextFill(Color.RED); shopDescLabel.setEffect(new DropShadow(5, Color.RED)); }
+        else { shopDescLabel.setText(">>> 游標懸停以查看組件說明 <<<"); shopDescLabel.setTextFill(Color.LIGHTGRAY); shopDescLabel.setEffect(null); }
+    }
     public void updateTalentUI() { talentCoinDisplay.setText("LEGACY COINS: " + p.legacyCoins + " ¢"); highScoreDisplay.setText("HIGHEST LAYER: " + p.highScore + "  |  LEGACY COINS: " + p.legacyCoins + " ¢"); drawTalentTreeNodes(); }
     public void updateDecryptUI() { decryptInputDisplay.setText("> " + engine.decryptInput + "_"); decryptInputDisplay.setTextFill(Color.web("#00FFCC")); decryptInputDisplay.setStyle("-fx-effect: dropshadow(three-pass-box, #00FFCC, 12, 0.4, 0, 0);"); ScaleTransition st = new ScaleTransition(Duration.millis(100), decryptInputDisplay); st.setFromX(1.1); st.setFromY(1.1); st.setToX(1.0); st.setToY(1.0); st.play(); }
     public void showGameOverStats(String reason, int level, int legacy, double maxCombo, int apm, double accuracy, String title) { gameOverReasonLabel.setText(reason); String stats = String.format("REACHED LAYER: %d\nMAX COMBO: x%.1f\nHACKING APM: %d\nACCURACY: %.1f%%\n\nCYBER TITLE EARNED:\n[ %s ]\n\nPERMANENT LEGACY COINS EARNED: +%d ¢", level, maxCombo, apm, accuracy, title, legacy); gameOverStatsLabel.setText(stats); gameOverLayer.setVisible(true); firewallLayer.setVisible(false); interceptLayer.setVisible(false); decryptLayer.setVisible(false); bugCatchLayer.setVisible(false); surgeLayer.setVisible(false); }

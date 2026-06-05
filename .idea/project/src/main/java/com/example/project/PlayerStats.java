@@ -24,6 +24,11 @@ public class PlayerStats {
     public int highScore = 0;
     public double highestCombo = 1.0; // 新增：生涯最高 Combo 紀錄
 
+    public int upgMiner = 0;           // 木馬挖礦程式：增加金幣但加快被追蹤
+    public boolean hasTraceShield = false; // 備用快取護盾：擋下一次追蹤懲罰
+    public int autoSolveCharges = 0;   // 邏輯閘短路器：直接跳過解密/攔截
+    public int overloadCharges = 0;
+
     // 路線選擇倍率
     public double routeRewardMult = 1.0;
     public double routeDiffMult = 1.0;
@@ -65,11 +70,12 @@ public class PlayerStats {
         currentLevel = 1;
         darkCoins = 0;
         upgClick = 0; upgSpeed = 0; upgShield = 0; upgBot = 0; upgMine = 0;
-        upgCoolant = 0; upgStealth = 0; // 新增：重置反制升級
+        upgCoolant = 0; upgStealth = 0;
+        upgMiner = 0; hasTraceShield = false; // 新增重置
 
-        // 變更：每次開局重置時，根據天賦賦予初始 EMP 數量
         empCharges = talentStartEMP;
         slowCharges = 0;
+        autoSolveCharges = 0; overloadCharges = 0; // 新增重置
         routeRewardMult = 1.0; routeDiffMult = 1.0;
     }
 
