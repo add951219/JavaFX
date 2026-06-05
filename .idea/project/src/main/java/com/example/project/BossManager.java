@@ -13,7 +13,7 @@ public class BossManager {
     }
 
     public void checkBossLevel() {
-        engine.rollGlitch(p.currentLevel); ui.updateGlitchDisplay();
+        engine.rollGlitch(p.currentLevel, p.talentSignalShield); ui.updateGlitchDisplay();
         engine.currentBossType = engine.determineBossType(p.currentLevel);
 
         if (engine.currentBossType != HackEngine.BossType.NONE) {
@@ -132,7 +132,8 @@ public class BossManager {
         ui.surgeLayer.setVisible(false); // 確保 SURGE 圖層被隱藏
         engine.isFirewallFight = false; engine.isInterceptFight = false; engine.isDecryptFight = false; engine.isSurgeFight = false;
 
-        ui.shakeScreen(); ui.playFlashEffect(Color.RED, 600); app.playErrorSound(2);
+        // 替換為新寫好的 Boss 失敗專屬音效
+        ui.shakeScreen(); ui.playFlashEffect(Color.RED, 600); app.playBossFailSound();
 
         if (engine.bossRage >= 3) { app.triggerGameOver("FATAL ERROR: BOSS ENRAGE LIMIT REACHED"); return; }
         engine.bossRage++;
@@ -193,7 +194,8 @@ public class BossManager {
                 // 真爆炸
                 for (int i=0; i<5; i++) engine.surgeExplosions[i] = engine.surgeWarnings[i];
                 if (engine.surgeExplosions[engine.surgePlayerPos]) {
-                    engine.surgeHP--; app.playErrorSound(2); ui.shakeScreen(); ui.playFlashEffect(Color.RED, 300);
+                    // 替換為新寫好的專屬受傷音效
+                    engine.surgeHP--; app.playPlayerHitSound(); ui.shakeScreen(); ui.playFlashEffect(Color.RED, 300);
                 }
             }
             for(int i=0; i<5; i++) engine.surgeWarnings[i] = false;

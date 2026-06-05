@@ -33,6 +33,7 @@ public class PlayerStats {
     public int talentStartEMP = 0;     // 開局自帶 EMP (Max 3)
     public int talentWeakFW = 0;       // 弱化防火牆初始血量 (Max 5)
     public int talentFlashTime = 0;    // 延長解密閃現記憶時間 (Max 3)
+    public int talentSignalShield = 0; // 新增：訊號屏蔽防護天賦 (Max 3)
 
     private final Preferences prefs;
 
@@ -80,6 +81,7 @@ public class PlayerStats {
         talentStartEMP = prefs.getInt("talentStartEMP", 0);
         talentWeakFW = prefs.getInt("talentWeakFW", 0);
         talentFlashTime = prefs.getInt("talentFlashTime", 0);
+        talentSignalShield = prefs.getInt("talentSignalShield", 0);
     }
 
     // 新增：將數據寫入硬碟
@@ -87,8 +89,9 @@ public class PlayerStats {
         prefs.putInt("highScore", highScore);
         prefs.putDouble("highestCombo", highestCombo);
         prefs.putInt("legacyCoins", legacyCoins);
-        prefs.putInt("talentStartEMP", talentStartEMP);
-        prefs.putInt("talentWeakFW", talentWeakFW);
-        prefs.putInt("talentFlashTime", talentFlashTime);
+        talentStartEMP = prefs.getInt("talentStartEMP", 0);
+        talentWeakFW = prefs.getInt("talentWeakFW", 0);
+        talentFlashTime = prefs.getInt("talentFlashTime", 0);
+        prefs.putInt("talentSignalShield", talentSignalShield);
     }
 }

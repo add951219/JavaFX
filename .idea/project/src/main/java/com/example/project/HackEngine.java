@@ -118,9 +118,11 @@ public class HackEngine {
         isSurgeFight = false;
     }
 
-    public void rollGlitch(int level) {
+    public void rollGlitch(int level, int shieldTalent) {
         activeGlitch = GlitchType.NONE;
-        if (level > 3 && random.nextInt(100) < (15 + level)) {
+        // 根據訊號屏蔽天賦等級，等比調降干擾詛咒發生的機率門檻
+        int chance = (15 + level) - (shieldTalent * 8);
+        if (level > 3 && random.nextInt(100) < Math.max(5, chance)) {
             int g = random.nextInt(3);
             if (g == 0) activeGlitch = GlitchType.NETWORK_LAG;
             else if (g == 1) activeGlitch = GlitchType.VISUAL_DISTORTION;

@@ -44,6 +44,8 @@ public class HelloApplication extends Application {
     private byte[] cachedSuccessBuf;
     private AudioClip hoverSound;
     private AudioClip clickSound;
+    public AudioClip playerHitSound;
+    public AudioClip bossFailSound;
 
     @Override
     public void start(Stage stage) {
@@ -58,7 +60,6 @@ public class HelloApplication extends Application {
     }
 
     private void initAudio() {
-        // 1. 初始化動態音效池與合成音效的資料 (負責 WASD 和密碼的成功音效)
         audioPool = Executors.newFixedThreadPool(4);
         try {
             float sampleRate = 44100f;
@@ -72,21 +73,17 @@ public class HelloApplication extends Application {
             cachedAudioFormat = new AudioFormat(sampleRate, 8, 1, true, false);
         } catch (Exception e) { }
 
-        // 2. 讀取其他實體音效檔案
         try { errorSound1 = new AudioClip(getClass().getResource("/error1.mp3").toExternalForm()); errorSound2 = new AudioClip(getClass().getResource("/error2.mp3").toExternalForm()); loseSound = new AudioClip(getClass().getResource("/lose.mp3").toExternalForm()); gunshotSound = new AudioClip(getClass().getResource("/gun.mp3").toExternalForm()); pictureHitSound = new AudioClip(getClass().getResource("/pic_hit.mp3").toExternalForm()); } catch (Exception e) {}
         try { bossIntroSound = new AudioClip(getClass().getResource("/boss_intro.mp3").toExternalForm()); } catch (Exception e) {}
         try { bossPhaseSound = new AudioClip(getClass().getResource("/boss_phase.mp3").toExternalForm()); } catch (Exception e) {}
-
-        // 讀取你自己的左鍵進度音效檔 (請確保 resources 資料夾下有這個檔案)
         try { hackTickSound = new AudioClip(getClass().getResource("/hack_tick.mp3").toExternalForm()); } catch (Exception e) {}
-
-        // 讀取滑鼠游標移入選項的音效
         try { hoverSound = new AudioClip(getClass().getResource("/hover.mp3").toExternalForm()); } catch (Exception e) {}
-
-        // 讀取滑鼠點擊選項的音效
         try { clickSound = new AudioClip(getClass().getResource("/click.mp3").toExternalForm()); } catch (Exception e) {}
 
-        // 3. 初始 BGM 音量設為 0.5 的平方 (0.25) 來對應 UI 滑桿的預設位置
+        // --- 新增的受傷與 Boss 失敗音效 ---
+        try { playerHitSound = new AudioClip(getClass().getResource("/hit.mp3").toExternalForm()); } catch (Exception e) {}
+        try { bossFailSound = new AudioClip(getClass().getResource("/boss_fail.mp3").toExternalForm()); } catch (Exception e) {}
+
         try { Media bgmMedia = new Media(getClass().getResource("/bgm.mp3").toExternalForm()); bgmPlayer = new MediaPlayer(bgmMedia); bgmPlayer.setCycleCount(MediaPlayer.INDEFINITE); bgmPlayer.setVolume(0.25); bgmPlayer.play(); } catch (Exception e) {}
     }
     public void playHoverSound() {
@@ -124,6 +121,8 @@ public class HelloApplication extends Application {
         if (bossIntroSound != null) bossIntroSound.setVolume(actualVol);
         if (bossPhaseSound != null) bossPhaseSound.setVolume(actualVol);
         if (loseSound != null) loseSound.setVolume(actualVol);
+        if (playerHitSound != null) playerHitSound.setVolume(actualVol);
+        if (bossFailSound != null) bossFailSound.setVolume(actualVol);
     }
 
     public void playSuccessSound() {
@@ -155,6 +154,13 @@ public class HelloApplication extends Application {
     public void playPictureHitSound() {
         if (pictureHitSound != null) { pictureHitSound.setVolume(getActualSfxVolume()); pictureHitSound.play(); }
     }
+    public void playPlayerHitSound() {
+        if (playerHitSound != null) { playerHitSound.setVolume(getActualSfxVolume()); playerHitSound.play(); }
+    }
+
+    public void playBossFailSound() {
+        if (bossFailSound != null) { bossFailSound.setVolume(getActualSfxVolume()); bossFailSound.play(); }
+    }
 
     private void setupInputHandlers(Scene scene) {
         scene.setOnMousePressed(e -> {
@@ -169,7 +175,7 @@ public class HelloApplication extends Application {
         });
         scene.setOnMouseReleased(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
-                // 放開左鍵時，不論目前遊戲狀態是什麼（即使已經進商店了），都強制中斷音效避免殘音
+                // 放開左鍵時，不論目前遊戲狀態是什麼，都強制中斷音效避免殘音
                 if (hackTickSound != null && hackTickSound.isPlaying()) {
                     hackTickSound.stop();
                 }
@@ -181,10 +187,30 @@ public class HelloApplication extends Application {
         });
         scene.setOnKeyPressed(e -> {
             if (!ui.root.isFocused()) ui.root.requestFocus();
+
+            // === 錄影與導播專用神之手作弊鍵 ===
             if (e.getCode() == KeyCode.F1) { if (engine.currentState == HackEngine.GameState.PLAYING) { engine.resetEvents(); ui.firewallLayer.setVisible(false); ui.interceptLayer.setVisible(false); ui.decryptLayer.setVisible(false); ui.bugCatchLayer.setVisible(false); ui.surgeLayer.setVisible(false); ui.typeWriterUpdate("[DEBUG_MODE] INSTANT WIN ACTIVATED."); playLevelClearExplosion(); } }
             if (e.getCode() == KeyCode.F2) { p.darkCoins += 50000; p.legacyCoins += 5000; ui.updateShopUI(); ui.updateTalentUI(); if (engine.currentState == HackEngine.GameState.PLAYING) ui.typeWriterUpdate("[DEBUG_MODE] +50000 DarkCoins / +5000 Legacy Coins."); }
             if (e.getCode() == KeyCode.F3) { p.currentLevel = ((p.currentLevel / 5) + 1) * 5 - 1; ui.updateASCIIProgress(); if (engine.currentState == HackEngine.GameState.PLAYING) ui.typeWriterUpdate("[DEBUG_MODE] WARPED TO BOSS ENTRANCE."); }
             if (e.getCode() == KeyCode.F4) { engine.coreHeat = 0; engine.isOverheated = false; engine.overheatEndTime = 0; engine.traceLevel = 0; engine.isBeingTraced = false; p.empCharges = 99; p.slowCharges = 99; ui.updateFirewallUI(); ui.updateTraceUI(0); ui.updateShopUI(); }
+
+            // 新增：F5 一鍵神裝 (滿級天賦與商店，方便錄製全亮特效)
+            if (e.getCode() == KeyCode.F5) {
+                p.upgClick = 5; p.upgSpeed = 5; p.upgCoolant = 5; p.upgStealth = 5; p.empCharges = 99; p.slowCharges = 99;
+                p.talentStartEMP = 3; p.talentWeakFW = 5; p.talentFlashTime = 3; p.talentSignalShield = 3;
+                ui.updateShopUI(); ui.updateTalentUI();
+                if (engine.currentState == HackEngine.GameState.PLAYING) ui.typeWriterUpdate("[DEMO_MODE] ALL UPGRADES MAXED OUT.");
+            }
+
+            // 新增：F6 手動切換視覺干擾 (方便錄製畫面錯位的 Cyberpunk 特效)
+            if (e.getCode() == KeyCode.F6) {
+                if (engine.currentState == HackEngine.GameState.PLAYING) {
+                    engine.activeGlitch = (engine.activeGlitch == HackEngine.GlitchType.NONE) ? HackEngine.GlitchType.VISUAL_DISTORTION : HackEngine.GlitchType.NONE;
+                    ui.updateGlitchDisplay();
+                    ui.typeWriterUpdate("[DEMO_MODE] VISUAL_DISTORTION TOGGLED.");
+                }
+            }
+
             if (e.getCode() == KeyCode.TAB && engine.isBossFight && engine.currentBossType == HackEngine.BossType.HYDRA && engine.bossPhase == 1) { engine.activeHydraHead = (engine.activeHydraHead + 1) % 3; ui.updateFirewallUI(); e.consume(); return; }
 
             if (engine.currentState == HackEngine.GameState.PLAYING) {
@@ -334,7 +360,8 @@ public class HelloApplication extends Application {
                 }
                 if (engine.isBeingTraced) {
                     if (engine.isHacking) {
-                        double traceSpeed = Math.max(0.005, 0.015 - (p.upgStealth * 0.002)); engine.traceLevel += traceSpeed;
+                        // 納入永久天賦的干擾抗性，等比減少被追蹤的上升速度
+                        double traceSpeed = Math.max(0.002, 0.015 - (p.upgStealth * 0.002) - (p.talentSignalShield * 0.002)); engine.traceLevel += traceSpeed;
                         if (engine.traceLevel >= 1.0) { engine.progress = Math.max(0, engine.progress - 0.3); engine.isBeingTraced = false; engine.traceLevel = 0.0; playErrorSound(1); ui.shakeScreen(); ui.typeWriterUpdate(">>> ⚠ LOCATION COMPROMISED. PROGRESS LOST ⚠"); }
                     } else { engine.traceLevel -= 0.02; if (engine.traceLevel <= 0) { engine.isBeingTraced = false; engine.traceLevel = 0.0; } }
                     ui.updateTraceUI(engine.traceLevel);
@@ -386,8 +413,8 @@ public class HelloApplication extends Application {
     public void triggerLevelClear() { ui.playPulseEffect(); ui.playSweepTransition(Color.LIME); int baseReward = engine.isBossLevel(p.currentLevel) ? 1000 : 100; int earned = (int)((p.currentLevel * baseReward) * engine.comboMultiplier * p.routeRewardMult); if (!engine.isEscapeSequence) p.darkCoins += earned; if (engine.isBossFight || engine.isBossLevel(p.currentLevel)) p.legacyCoins += 15; p.currentLevel++; engine.progress = 0.0; engine.currentSegment = 0; if (p.currentLevel > p.highScore) p.highScore = p.currentLevel; ui.uiBorder.setTextFill(Color.rgb(0, 255, 204, 0.5)); ui.gameLayer.setVisible(false); engine.currentState = HackEngine.GameState.ROUTE_SELECT; ui.routeLayer.setVisible(true); engine.coreHeat = 0.0; engine.isOverheated = false; engine.isBeingTraced = false; engine.traceLevel = 0.0; }
     public void startIntroSequence() { engine.currentState = HackEngine.GameState.INTRO; ui.menuLayer.setVisible(false); ui.introLayer.setVisible(true); Label text = (Label) ui.introLayer.getChildren().get(0); String[] lines = {"WAKING UP SYSTEM...", "ACCESS GRANTED."}; Timeline introTimeline = new Timeline(); for (int i=0; i<lines.length; i++) { final int index = i; introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(0.5 * (i+1)), e -> text.setText(lines[index]))); } introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(lines.length * 0.5 + 0.5), e -> { ui.introLayer.setVisible(false); ui.gameLayer.setVisible(true); engine.currentState = HackEngine.GameState.PLAYING; engine.startNewRun(); bossManager.checkBossLevel(); })); introTimeline.play(); }
     public void triggerGameOver(String reason) { engine.isEscapeSequence = false; ui.interceptTimeDisplay.setTextFill(Color.WHITE); if (loseSound != null) { if (loseSound.isPlaying()) loseSound.stop(); loseSound.play(); } engine.currentState = HackEngine.GameState.GAMEOVER; ui.shakeScreen(); ui.playSweepTransition(Color.RED); ui.playFlashEffect(Color.rgb(255, 0, 0, 0.4), 800); ui.updateTraceUI(0); int earnedLegacy = p.darkCoins / 10; p.legacyCoins += earnedLegacy; if (engine.runMaxCombo > p.highestCombo) p.highestCombo = engine.runMaxCombo; try { p.saveData(); } catch (Exception ex) {} ui.updateTalentUI(); String title = "SCRIPT KIDDIE"; int apm = engine.getRunAPM(); double acc = engine.getRunAccuracy(); if (p.currentLevel >= 20) title = "CYBER DEMIGOD"; else if (engine.runMaxCombo >= 3.0 && acc >= 95.0) title = "FLAWLESS GHOST"; else if (apm >= 350) title = "KEYBOARD WARRIOR"; else if (engine.runMaxCombo >= 2.5) title = "COMBO MASTER"; else if (p.currentLevel > 5) title = "NET RUNNER"; ui.showGameOverStats(reason, p.currentLevel, earnedLegacy, engine.runMaxCombo, apm, acc, title); }
-    public void selectTalentNode(int branchId, int level) { this.selectedBranch = branchId; this.selectedLevel = level; int currentLevelInBranch = (branchId == 1) ? p.talentStartEMP : (branchId == 2 ? p.talentWeakFW : p.talentFlashTime); int cost = (branchId == 1) ? 50 : (branchId == 2 ? 75 : 100); String branchName = (branchId == 1) ? "控制組件優化 [EMP 強化]" : (branchId == 2 ? "防火牆漏洞利用 [FW 弱化]" : "緩衝記憶體擴充 [FLASH 記憶]"); ui.talentNameLabel.setText(String.format(">>> 解密節點：%s (等級 %d) <<<", branchName, level)); ui.talentEffectLabel.setText(branchId == 1 ? String.format("加成效果：自帶 %d 顆 EMP 脈衝彈。", level) : (branchId == 2 ? String.format("加成效果：FW 弱化 +%d%%。", level * 5) : String.format("加成效果：閃現記憶時間 +%.2fs。", level * 0.15))); if (level <= currentLevelInBranch) { ui.talentCostLabel.setText("狀態：[ 數據已完美同步寫入 ]"); ui.talentCostLabel.setTextFill(Color.LIME); ui.btnUpgradeTalent.setVisible(false); } else if (level == currentLevelInBranch + 1) { ui.talentCostLabel.setText(String.format("升級消耗：%d ¢", cost)); ui.talentCostLabel.setTextFill(Color.GOLD); ui.btnUpgradeTalent.setText(">>> 執行數據寫入核心 <<<"); ui.btnUpgradeTalent.setVisible(true); ui.btnUpgradeTalent.setOnAction(e -> executeSelectedUpgrade(branchId, cost)); } else { ui.talentCostLabel.setText("狀態：[ 核心未串接 ]"); ui.talentCostLabel.setTextFill(Color.RED); ui.btnUpgradeTalent.setVisible(false); } ui.playDescFadeIn(); }
-    private void executeSelectedUpgrade(int branchId, int cost) { if (p.buyLegacy(cost)) { if (branchId == 1) p.talentStartEMP++; else if (branchId == 2) p.talentWeakFW++; else if (branchId == 3) p.talentFlashTime++; try { p.saveData(); } catch(Exception ex) {} ui.updateTalentUI(); selectTalentNode(branchId, selectedLevel); } else { ui.triggerErrorEffect(ui.errorImage2, 2); ui.talentCostLabel.setText("錯誤：[ Legacy Coins 不足 ]"); ui.talentCostLabel.setTextFill(Color.RED); } }
+    public void selectTalentNode(int branchId, int level) { this.selectedBranch = branchId; this.selectedLevel = level; int currentLevelInBranch = (branchId == 1) ? p.talentStartEMP : (branchId == 2 ? p.talentWeakFW : (branchId == 3 ? p.talentFlashTime : p.talentSignalShield)); int cost = (branchId == 1) ? 50 : (branchId == 2 ? 75 : (branchId == 3 ? 100 : 120)); String branchName = (branchId == 1) ? "控制組件優化 [EMP 強化]" : (branchId == 2 ? "防火牆漏洞利用 [FW 弱化]" : (branchId == 3 ? "緩衝記憶體擴充 [FLASH 記憶]" : "訊號屏蔽防護 [防追蹤與干擾]")); ui.talentNameLabel.setText(String.format(">>> 解密節點：%s (等級 %d) <<<", branchName, level)); ui.talentEffectLabel.setText(branchId == 1 ? String.format("加成效果：自帶 %d 顆 EMP 脈衝彈。", level) : (branchId == 2 ? String.format("加成效果：FW 弱化 +%d%%。", level * 5) : (branchId == 3 ? String.format("加成效果：閃現記憶時間 +%.2fs。", level * 0.15) : String.format("加成效果：被追蹤速度降低 %d%%，環境干擾機率下降。", level * 15)))); if (level <= currentLevelInBranch) { ui.talentCostLabel.setText("狀態：[ 數據已完美同步寫入 ]"); ui.talentCostLabel.setTextFill(Color.LIME); ui.btnUpgradeTalent.setVisible(false); } else if (level == currentLevelInBranch + 1) { ui.talentCostLabel.setText(String.format("升級消耗：%d ¢", cost)); ui.talentCostLabel.setTextFill(Color.GOLD); ui.btnUpgradeTalent.setText(">>> 執行數據寫入核心 <<<"); ui.btnUpgradeTalent.setVisible(true); ui.btnUpgradeTalent.setOnAction(e -> executeSelectedUpgrade(branchId, cost)); } else { ui.talentCostLabel.setText("狀態：[ 核心未串接 ]"); ui.talentCostLabel.setTextFill(Color.RED); ui.btnUpgradeTalent.setVisible(false); } ui.playDescFadeIn(); }
+    private void executeSelectedUpgrade(int branchId, int cost) { if (p.buyLegacy(cost)) { if (branchId == 1) p.talentStartEMP++; else if (branchId == 2) p.talentWeakFW++; else if (branchId == 3) p.talentFlashTime++; else if (branchId == 4) p.talentSignalShield++; try { p.saveData(); } catch(Exception ex) {} ui.shakeScreen(); ui.playFlashEffect(Color.rgb(0, 255, 204, 0.4), 400); playSuccessSound(); ui.updateTalentUI(); selectTalentNode(branchId, selectedLevel); } else { ui.triggerErrorEffect(ui.errorImage2, 2); ui.talentCostLabel.setText("錯誤：[ Legacy Coins 不足 ]"); ui.talentCostLabel.setTextFill(Color.RED); } }
     public void openTalentTree() { ui.playSweepTransition(Color.web("#FF007F")); engine.currentState = HackEngine.GameState.TALENT_TREE; ui.menuLayer.setVisible(false); ui.updateTalentUI(); ui.talentLayer.setVisible(true); }
     public void closeTalentTree() { ui.playSweepTransition(Color.CYAN); engine.currentState = HackEngine.GameState.MAIN_MENU; ui.talentLayer.setVisible(false); ui.menuLayer.setVisible(true); }
     public void handleHoneypotTrap() { }
