@@ -484,7 +484,25 @@ public class HelloApplication extends Application {
     public void openTalentTree() { ui.playSweepTransition(Color.web("#FF007F")); engine.currentState = HackEngine.GameState.TALENT_TREE; ui.menuLayer.setVisible(false); ui.updateTalentUI(); ui.talentLayer.setVisible(true); }
     public void closeTalentTree() { ui.playSweepTransition(Color.CYAN); engine.currentState = HackEngine.GameState.MAIN_MENU; ui.talentLayer.setVisible(false); ui.menuLayer.setVisible(true); }
     public void handleHoneypotTrap() { }
-    public void returnToMenu() { ui.playSweepTransition(Color.WHITE); ui.pauseLayer.setVisible(false); ui.gameLayer.setVisible(false); ui.shopLayer.setVisible(false); ui.gameOverLayer.setVisible(false); ui.routeLayer.setVisible(false); ui.menuLayer.setVisible(true); resetGame(); engine.currentState = HackEngine.GameState.MAIN_MENU; }
+
+    public void returnToMenu() {
+        ui.playSweepTransition(Color.WHITE);
+        ui.pauseLayer.setVisible(false);
+        ui.gameLayer.setVisible(false); // 關閉並保持遊戲畫面隱藏
+        ui.shopLayer.setVisible(false);
+        ui.gameOverLayer.setVisible(false);
+        ui.routeLayer.setVisible(false);
+        ui.menuLayer.setVisible(true); // 只讓主選單圖層可見
+
+        // === 手動重置數據，取代直接呼叫 resetGame() 避免把 gameLayer 重新設為 true ===
+        engine.isEscapeSequence = false;
+        p.reset();
+        engine.resetEvents();
+        ui.updateTraceUI(0);
+
+        engine.currentState = HackEngine.GameState.MAIN_MENU;
+    }
+
     public void enterShop() { ui.playSweepTransition(Color.LIME); ui.routeLayer.setVisible(false); ui.updateShopUI(); ui.shopLayer.setVisible(true); engine.currentState = HackEngine.GameState.SHOP; }
     public void resetGame() { engine.isEscapeSequence = false; p.reset(); engine.resetEvents(); ui.gameOverLayer.setVisible(false); ui.gameLayer.setVisible(true); ui.updateTraceUI(0); engine.currentState = HackEngine.GameState.PLAYING; engine.startNewRun(); bossManager.checkBossLevel(); }
     public static void main(String[] args) { launch(); }
