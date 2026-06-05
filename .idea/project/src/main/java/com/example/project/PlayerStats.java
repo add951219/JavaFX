@@ -13,56 +13,58 @@ public class PlayerStats {
     public int upgBot = 0;
     public int upgMine = 0;
 
-    // === 新增：反制機制專屬升級 ===
-    public int upgCoolant = 0; // 散熱組件：降低過熱累積速度
-    public int upgStealth = 0; // 隱蔽路由：減緩被追蹤的速度
+    public int upgCoolant = 0;
+    public int upgStealth = 0;
 
     // 主動技能 (消耗品)
     public int empCharges = 0;
     public int slowCharges = 0;
 
     public int highScore = 0;
-    public double highestCombo = 1.0; // 新增：生涯最高 Combo 紀錄
+    public double highestCombo = 1.0;
 
-    public int upgMiner = 0;           // 木馬挖礦程式：增加金幣但加快被追蹤
-    public boolean hasTraceShield = false; // 備用快取護盾：擋下一次追蹤懲罰
-    public int autoSolveCharges = 0;   // 邏輯閘短路器：直接跳過解密/攔截
+    public int upgMiner = 0;
+    public boolean hasTraceShield = false;
+    public int autoSolveCharges = 0;
     public int overloadCharges = 0;
 
     // 路線選擇倍率
     public double routeRewardMult = 1.0;
     public double routeDiffMult = 1.0;
 
-    // === 局外永久天賦系統變數 (新增) ===
-    public int legacyCoins = 0;       // 永久貨幣
-    public int talentStartEMP = 0;     // 開局自帶 EMP (Max 3)
-    public int talentWeakFW = 0;       // 弱化防火牆初始血量 (Max 5)
-    public int talentFlashTime = 0;    // 延長解密閃現記憶時間 (Max 3)
-    public int talentSignalShield = 0; // 新增：訊號屏蔽防護天賦 (Max 3)
+    // === 局外永久天賦系統變數 ===
+    public int legacyCoins = 0;
+    // 原有基礎天賦 (Level 1)
+    public int talentStartEMP = 0;
+    public int talentWeakFW = 0;
+    public int talentFlashTime = 0;
+    public int talentSignalShield = 0;
+
+    // 全新四大流派天賦 (Level 2~4)
+    public boolean talentErrorCorrect = false; // 防呆協議
+    public boolean talentComboGuard = false;   // 連擊保險
+    public boolean talentGlitchImmune = false; // 防毒核心
+    public boolean talentOverdrive = false;    // 熱能超頻
+    public boolean talentEdgeRunner = false;   // 極限駭客
+    public boolean talentTrojanSplit = false;  // 木馬分裂
+    public boolean talentHeatDump = false;     // 緊急散熱
+    public boolean talentBugZapper = false;    // 滅蟲波段
+    public boolean talentIntuition = false;    // 直覺駭入
 
     private final Preferences prefs;
 
     public PlayerStats() {
-        // 初始化並載入系統註冊表中的存檔數據
         prefs = Preferences.userNodeForPackage(PlayerStats.class);
         loadData();
     }
 
     public boolean buy(int cost) {
-        if (darkCoins >= cost) {
-            darkCoins -= cost;
-            return true;
-        }
+        if (darkCoins >= cost) { darkCoins -= cost; return true; }
         return false;
     }
 
-    // 新增：購買永久天賦用的方法
     public boolean buyLegacy(int cost) {
-        if (legacyCoins >= cost) {
-            legacyCoins -= cost;
-            saveData(); // 扣錢後立刻存檔
-            return true;
-        }
+        if (legacyCoins >= cost) { legacyCoins -= cost; saveData(); return true; }
         return false;
     }
 
@@ -71,15 +73,13 @@ public class PlayerStats {
         darkCoins = 0;
         upgClick = 0; upgSpeed = 0; upgShield = 0; upgBot = 0; upgMine = 0;
         upgCoolant = 0; upgStealth = 0;
-        upgMiner = 0; hasTraceShield = false; // 新增重置
-
+        upgMiner = 0; hasTraceShield = false;
         empCharges = talentStartEMP;
         slowCharges = 0;
-        autoSolveCharges = 0; overloadCharges = 0; // 新增重置
+        autoSolveCharges = 0; overloadCharges = 0;
         routeRewardMult = 1.0; routeDiffMult = 1.0;
     }
 
-    // 新增：從硬碟讀取數據
     public void loadData() {
         highScore = prefs.getInt("highScore", 0);
         highestCombo = prefs.getDouble("highestCombo", 1.0);
@@ -88,16 +88,35 @@ public class PlayerStats {
         talentWeakFW = prefs.getInt("talentWeakFW", 0);
         talentFlashTime = prefs.getInt("talentFlashTime", 0);
         talentSignalShield = prefs.getInt("talentSignalShield", 0);
+
+        talentErrorCorrect = prefs.getBoolean("talentErrorCorrect", false);
+        talentComboGuard = prefs.getBoolean("talentComboGuard", false);
+        talentGlitchImmune = prefs.getBoolean("talentGlitchImmune", false);
+        talentOverdrive = prefs.getBoolean("talentOverdrive", false);
+        talentEdgeRunner = prefs.getBoolean("talentEdgeRunner", false);
+        talentTrojanSplit = prefs.getBoolean("talentTrojanSplit", false);
+        talentHeatDump = prefs.getBoolean("talentHeatDump", false);
+        talentBugZapper = prefs.getBoolean("talentBugZapper", false);
+        talentIntuition = prefs.getBoolean("talentIntuition", false);
     }
 
-    // 新增：將數據寫入硬碟
     public void saveData() {
         prefs.putInt("highScore", highScore);
         prefs.putDouble("highestCombo", highestCombo);
         prefs.putInt("legacyCoins", legacyCoins);
-        talentStartEMP = prefs.getInt("talentStartEMP", 0);
-        talentWeakFW = prefs.getInt("talentWeakFW", 0);
-        talentFlashTime = prefs.getInt("talentFlashTime", 0);
+        prefs.putInt("talentStartEMP", talentStartEMP);
+        prefs.putInt("talentWeakFW", talentWeakFW);
+        prefs.putInt("talentFlashTime", talentFlashTime);
         prefs.putInt("talentSignalShield", talentSignalShield);
+
+        prefs.putBoolean("talentErrorCorrect", talentErrorCorrect);
+        prefs.putBoolean("talentComboGuard", talentComboGuard);
+        prefs.putBoolean("talentGlitchImmune", talentGlitchImmune);
+        prefs.putBoolean("talentOverdrive", talentOverdrive);
+        prefs.putBoolean("talentEdgeRunner", talentEdgeRunner);
+        prefs.putBoolean("talentTrojanSplit", talentTrojanSplit);
+        prefs.putBoolean("talentHeatDump", talentHeatDump);
+        prefs.putBoolean("talentBugZapper", talentBugZapper);
+        prefs.putBoolean("talentIntuition", talentIntuition);
     }
 }

@@ -3,10 +3,8 @@ package com.example.project;
 import java.util.Random;
 
 public class HackEngine {
-    public enum GameState { MAIN_MENU, ROUTE_SELECT, SHOP, TALENT_TREE, PLAYING, PAUSED, GAMEOVER, INTRO }
+    public enum GameState { MAIN_MENU, ROUTE_SELECT, SHOP, TALENT_TREE, PLAYING, PAUSED, GAMEOVER, INTRO, TUTORIAL }
     public enum GlitchType { NONE, NETWORK_LAG, VISUAL_DISTORTION, CORE_OVERLOAD }
-
-    // === 【修復】把 PHANTOM 加回來，避免其他檔案找不到報錯 ===
     public enum BossType { NONE, PULSE, SURGE, PHANTOM, CERBERUS, ARCHITECT, MIMIC, HYDRA, SPECTER, NULL_GOD }
 
     public boolean isBossFight = false;
@@ -16,9 +14,13 @@ public class HackEngine {
     public int bossRage = 0;
     public boolean isEscapeSequence = false;
 
-    // === SURGE (第 10 關) 專屬變數 ===
+    // === 天賦專用變數 ===
+    public boolean heatDumpAvailable = true; // 緊急散熱每局1次
+    public int errorCorrectCharges = 0;      // 防呆協議次數
+    public int eventMistakes = 0;            // 記錄事件失誤次數 (極限駭客用)
+
     public boolean isSurgeFight = false;
-    public int surgePlayerPos = 2; // 0~4, 初始在中間
+    public int surgePlayerPos = 2;
     public int surgeHP = 3;
     public long surgeStartTime = 0;
     public long surgeNextAttackTime = 0;
@@ -29,7 +31,6 @@ public class HackEngine {
     public long surgeExplodeEndTime = 0;
     public boolean isSurgeFakeOut = false;
 
-    // === PULSE (第 5 關) 專屬變數 ===
     public boolean isPulseFight = false;
     public double pulseScanPos = 0.0;
     public double pulseScanDir = 1.0;
@@ -50,7 +51,6 @@ public class HackEngine {
     public long pulseRevealInterval = 600_000_000L;
     public boolean pulseAllRevealed = false;
 
-    // === 其他 Boss 專屬特殊變數 ===
     public long cerberusGlobalDeadline = 0;
     public long lastArchitectShiftTime = 0;
     public boolean isMimicWindow = true;
@@ -105,7 +105,7 @@ public class HackEngine {
 
     public void startNewRun() {
         progress = 0.0; currentSegment = 0; isHacking = false; isBeingTraced = false; traceLevel = 0.0;
-        coreHeat = 0.0; isOverheated = false;
+        coreHeat = 0.0; isOverheated = false; heatDumpAvailable = true;
         runTotalKeystrokes = 0; runCorrectKeystrokes = 0; runMaxCombo = 1.0; comboMultiplier = 1.0; comboFrames = 0;
         runStartTime = System.nanoTime();
         resetEvents();
@@ -115,18 +115,31 @@ public class HackEngine {
         isFirewallFight = false; isInterceptFight = false; isDecryptFight = false; isBugCatchFight = false;
         isBossFight = false; bossPhase = 1; bossRage = 0; currentBossType = BossType.NONE; isEscapeSequence = false;
         isPulseFight = false; pulseHitsCount = 0; pulseRevealIndex = 0; pulseAllRevealed = false;
-        isSurgeFight = false;
+        isSurgeFight = false; errorCorrectCharges = 0; eventMistakes = 0;
     }
 
-    public void rollGlitch(int level, int shieldTalent) {
+    // === 天賦：防毒核心 (Glitch Immunity) 機率觸發 ===
+    public void rollGlitch(int level, PlayerStats p) {
         activeGlitch = GlitchType.NONE;
-        // 根據訊號屏蔽天賦等級，等比調降干擾詛咒發生的機率門檻
-        int chance = (15 + level) - (shieldTalent * 8);
+        int chance = (15 + level) - (p.talentSignalShield * 8);
         if (level > 3 && random.nextInt(100) < Math.max(5, chance)) {
+            if (p.talentGlitchImmune && random.nextInt(100) < 30) return; // 30% 完全免疫
+
             int g = random.nextInt(3);
             if (g == 0) activeGlitch = GlitchType.NETWORK_LAG;
             else if (g == 1) activeGlitch = GlitchType.VISUAL_DISTORTION;
             else if (g == 2) activeGlitch = GlitchType.CORE_OVERLOAD;
+        }
+    }
+
+    // === 天賦：連擊保險 (Combo Guard) ===
+    public void dropCombo(PlayerStats p) {
+        if (p.talentComboGuard && comboMultiplier > 1.0) {
+            comboMultiplier = Math.max(1.0, comboMultiplier - 1.0);
+            comboFrames = (int)((comboMultiplier - 1.0) * 180.0);
+        } else {
+            comboFrames = 0;
+            comboMultiplier = 1.0;
         }
     }
 
@@ -157,7 +170,6 @@ public class HackEngine {
         decryptTarget = sb.toString(); decryptInput = "";
     }
 
-    // === SURGE 攻擊生成邏輯 ===
     public double getSurgeElapsed() {
         if (!isSurgeFight) return 0.0;
         return (System.nanoTime() - surgeStartTime) / 1_000_000_000.0;
@@ -187,7 +199,6 @@ public class HackEngine {
             if (surgePlayerPos < 2) furthest = 4;
             else if (surgePlayerPos > 2) furthest = 0;
             else furthest = random.nextBoolean() ? 0 : 4;
-
             surgeWarnings[furthest] = true;
             targetsCount--;
         }
@@ -206,14 +217,13 @@ public class HackEngine {
         if (elapsed >= 60.0 && surgeHealsDone == 1) { surgeHP = Math.min(3, surgeHP + 1); surgeHealsDone++; }
     }
 
-    // === PULSE 方法 ===
     public void startPulseFirewall(long now) {
         isPulseFight = true; pulseScanPos = 0.0; pulseScanDir = 1.0;
         pulseHitsCount = 0; pulseJustHit = false; pulseHitsRequired = 5;
         isFirewallFight = true; firewallProgress = 0.0; pulsePhase1Deadline = now + 15_000_000_000L;
     }
     public void startPulseBeat(PlayerStats p, long now) {
-        isInterceptFight = true; sequenceIndex = 0; int len = 4 + (p.currentLevel / 4);
+        isInterceptFight = true; sequenceIndex = 0; eventMistakes = 0; int len = 4 + (p.currentLevel / 4);
         String[] dirs = {"W","A","S","D"}; StringBuilder sb = new StringBuilder();
         for (int i=0; i<len; i++) sb.append(dirs[random.nextInt(4)]);
         targetSequence = sb.toString(); pulseLetterDeadlines = new long[len];
@@ -221,7 +231,7 @@ public class HackEngine {
         interceptDeadline = now + pulseBeatInterval * (len + 2);
     }
     public void startPulseReveal(PlayerStats p, long now) {
-        isDecryptFight = true; decryptInput = ""; int len = 4 + (p.currentLevel / 5);
+        isDecryptFight = true; decryptInput = ""; eventMistakes = 0; int len = 4 + (p.currentLevel / 5);
         StringBuilder sb = new StringBuilder(); for(int i=0; i<len; i++) sb.append((char)(random.nextInt(26) + 'A'));
         decryptTarget = sb.toString(); pulseRevealChars = decryptTarget.split(""); pulseRevealIndex = 0; pulseAllRevealed = false;
         pulseNextRevealTime = now + 1_500_000_000L; decryptDeadline = now + (long)(15.0 * 1_000_000_000L); isDecryptFlashed = false; decryptFlashEndTime = 0;
@@ -240,9 +250,10 @@ public class HackEngine {
         }
     }
 
-    // === 通用事件啟動 ===
     public void startInterceptEvent(PlayerStats p, long now) {
-        isInterceptFight = true; sequenceIndex = 0; int len = 4 + (p.currentLevel / 3);
+        isInterceptFight = true; sequenceIndex = 0; eventMistakes = 0;
+        if(p.talentErrorCorrect) errorCorrectCharges = 2; // 天賦：防呆協議
+        int len = 4 + (p.currentLevel / 3);
         String[] dirs = {"W", "A", "S", "D"}; StringBuilder sb = new StringBuilder();
         for (int i=0; i<len; i++) sb.append(dirs[random.nextInt(4)]);
         targetSequence = sb.toString(); displaySequence = targetSequence;
@@ -251,7 +262,9 @@ public class HackEngine {
         interceptDeadline = now + (long)(time * 1_000_000_000L);
     }
     public void startDecryptEvent(PlayerStats p, long now) {
-        isDecryptFight = true; decryptInput = ""; isDecryptFlashed = false; int len = 4 + (p.currentLevel / 4);
+        isDecryptFight = true; decryptInput = ""; isDecryptFlashed = false; eventMistakes = 0;
+        if(p.talentErrorCorrect) errorCorrectCharges = 2; // 天賦：防呆協議
+        int len = 4 + (p.currentLevel / 4);
         StringBuilder sb = new StringBuilder(); for(int i=0; i<len; i++) sb.append((char)(random.nextInt(26) + 'A'));
         decryptTarget = sb.toString();
         double flashTime = 1.2 + (p.talentFlashTime * 0.15) - (p.currentLevel * 0.03); if(flashTime < 0.4) flashTime = 0.4;
@@ -265,13 +278,19 @@ public class HackEngine {
         bugCatchDeadline = now + (long)(baseTime * 1_000_000_000L); lastBugSpawnTime = now;
     }
 
-    public boolean useEMP(PlayerStats p) {
+    // === 天賦：木馬分裂 (Trojan Split) ===
+    public int useEMP(PlayerStats p) {
         if (p.empCharges > 0 && isFirewallFight && currentBossType != BossType.PULSE) {
             p.empCharges--;
             if(currentBossType == BossType.HYDRA && isBossFight) { for(int i=0; i<3; i++) hydraWalls[i] = Math.min(1.0, hydraWalls[i] + 0.4); }
             else { firewallProgress = Math.min(1.0, firewallProgress + 0.4); }
-            return true;
-        } return false;
+
+            if (p.talentTrojanSplit && random.nextDouble() < 0.25) {
+                if (random.nextBoolean()) p.empCharges++; else p.slowCharges++;
+                return 2; // 回傳 2 代表觸發了天賦退款
+            }
+            return 1;
+        } return 0;
     }
     public boolean useSlow(PlayerStats p) {
         if (p.slowCharges > 0) {

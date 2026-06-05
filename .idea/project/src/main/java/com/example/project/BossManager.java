@@ -13,7 +13,8 @@ public class BossManager {
     }
 
     public void checkBossLevel() {
-        engine.rollGlitch(p.currentLevel, p.talentSignalShield); ui.updateGlitchDisplay();
+        engine.rollGlitch(p.currentLevel, p); // === 修改這裡 ===
+        ui.updateGlitchDisplay();
         engine.currentBossType = engine.determineBossType(p.currentLevel);
 
         if (engine.currentBossType != HackEngine.BossType.NONE) {
@@ -55,8 +56,7 @@ public class BossManager {
         double rageMult = 1.0 - (engine.bossRage * 0.15);
 
         if(engine.bossPhase > 1) {
-            engine.comboFrames = Math.max(0, engine.comboFrames - 60);
-            engine.comboMultiplier = Math.max(1.0, engine.comboMultiplier * 0.8);
+            engine.dropCombo(p); // Boss 換階段稍微掉連擊
         }
 
         // === SURGE Boss (獨立生存階段) ===
@@ -95,29 +95,31 @@ public class BossManager {
 
         // === 一般 Boss ===
         if (engine.bossPhase == 1) {
-            engine.isFirewallFight = true; ui.firewallLayer.setVisible(true); engine.firewallProgress = 0.2;
+            engine.isFirewallFight = true; ui.firewallLayer.setVisible(true); engine.firewallProgress = 0.2 + (p.talentWeakFW * 0.05);
             if (engine.currentBossType == HackEngine.BossType.CERBERUS) engine.cerberusGlobalDeadline = now + (long)(35.0 * 1_000_000_000L);
             if (engine.currentBossType == HackEngine.BossType.MIMIC) { engine.isMimicWindow = true; engine.mimicToggleTime = now + 1_500_000_000L; }
             if (engine.currentBossType == HackEngine.BossType.HYDRA) { engine.hydraWalls = new double[]{0.3, 0.3, 0.3}; engine.activeHydraHead = 0; }
             if (engine.currentBossType == HackEngine.BossType.NULL_GOD) { engine.isBeingTraced = true; engine.traceLevel = 0.0; }
         }
         else if (engine.bossPhase == 2) {
-            engine.isInterceptFight = true; engine.sequenceIndex = 0; int len = 8 + (p.currentLevel / 3);
+            engine.isInterceptFight = true; engine.sequenceIndex = 0; engine.eventMistakes = 0; int len = 8 + (p.currentLevel / 3);
             if (engine.currentBossType == HackEngine.BossType.NULL_GOD) { engine.targetSequence = engine.generateBossAlphaNum(len); engine.displaySequence = engine.targetSequence; }
             else { String[] dirs = {"W", "A", "S", "D"}; StringBuilder sb = new StringBuilder(); for (int i=0; i<len; i++) sb.append(dirs[engine.random.nextInt(4)]); engine.targetSequence = sb.toString(); engine.displaySequence = engine.targetSequence; }
             if (engine.currentBossType == HackEngine.BossType.MIMIC) { engine.displaySequence = engine.targetSequence; engine.targetSequence = new StringBuilder(engine.targetSequence).reverse().toString(); }
             if (engine.currentBossType == HackEngine.BossType.SPECTER) { engine.isSpecterHidden = false; engine.specterHideTime = now + 1_000_000_000L; }
             double baseTime = Math.max(5.0, 10.0 - (p.currentLevel * 0.15));
             engine.interceptDeadline = now + (long)(baseTime * rageMult * 1_000_000_000L);
+            if(p.talentErrorCorrect) engine.errorCorrectCharges = 2;
             ui.interceptLayer.setVisible(true); ui.updateInterceptUI();
         }
         else if (engine.bossPhase == 3) {
-            engine.isDecryptFight = true; engine.decryptInput = ""; engine.isDecryptFlashed = false; int len = 6 + (p.currentLevel / 4);
+            engine.isDecryptFight = true; engine.decryptInput = ""; engine.isDecryptFlashed = false; engine.eventMistakes = 0; int len = 6 + (p.currentLevel / 4);
             StringBuilder sb = new StringBuilder(); for(int i=0; i<len; i++) sb.append((char)(engine.random.nextInt(26) + 'A')); engine.decryptTarget = sb.toString();
             if (engine.currentBossType == HackEngine.BossType.MIMIC) { engine.isDecryptFlashed = true; ui.decryptTargetDisplay.setText("? ? ? ? ?"); engine.decryptFlashEndTime = now + 500_000_000L; }
-            else { double flashTime = Math.max(0.3, 1.2 - (p.currentLevel * 0.02)) * rageMult; engine.decryptFlashEndTime = now + (long)(flashTime * 1_000_000_000L); ui.decryptTargetDisplay.setText(engine.decryptTarget); }
+            else { double flashTime = Math.max(0.3, 1.2 + (p.talentFlashTime * 0.15) - (p.currentLevel * 0.02)) * rageMult; engine.decryptFlashEndTime = now + (long)(flashTime * 1_000_000_000L); ui.decryptTargetDisplay.setText(engine.decryptTarget); }
             double baseDecTime = Math.max(4.0, 8.0 - (p.currentLevel * 0.15));
             engine.decryptDeadline = now + (long)(baseDecTime * rageMult * 1_000_000_000L);
+            if(p.talentErrorCorrect) engine.errorCorrectCharges = 2;
             ui.decryptLayer.setVisible(true); ui.updateDecryptUI();
         }
         else if (engine.bossPhase == 4) {
@@ -132,7 +134,6 @@ public class BossManager {
         ui.surgeLayer.setVisible(false); // 確保 SURGE 圖層被隱藏
         engine.isFirewallFight = false; engine.isInterceptFight = false; engine.isDecryptFight = false; engine.isSurgeFight = false;
 
-        // 替換為新寫好的 Boss 失敗專屬音效
         ui.shakeScreen(); ui.playFlashEffect(Color.RED, 600); app.playBossFailSound();
 
         if (engine.bossRage >= 3) { app.triggerGameOver("FATAL ERROR: BOSS ENRAGE LIMIT REACHED"); return; }
@@ -194,7 +195,6 @@ public class BossManager {
                 // 真爆炸
                 for (int i=0; i<5; i++) engine.surgeExplosions[i] = engine.surgeWarnings[i];
                 if (engine.surgeExplosions[engine.surgePlayerPos]) {
-                    // 替換為新寫好的專屬受傷音效
                     engine.surgeHP--; app.playPlayerHitSound(); ui.shakeScreen(); ui.playFlashEffect(Color.RED, 300);
                 }
             }
@@ -271,7 +271,16 @@ public class BossManager {
 
         if (now > engine.interceptDeadline && engine.currentBossType != HackEngine.BossType.CERBERUS) handleBossFailure("INTERCEPT TIMEOUT");
         else if (engine.sequenceIndex >= engine.targetSequence.length()) {
-            engine.isInterceptFight = false; ui.interceptLayer.setVisible(false); ui.typeWriterUpdate(">>> CORE SEQUENCE INJECTED. RAGE MODE ACTIVATED!");
+            engine.isInterceptFight = false; ui.interceptLayer.setVisible(false);
+
+            // 天賦：極限駭客 結算
+            if (engine.eventMistakes == 0 && p.talentEdgeRunner) {
+                p.legacyCoins++;
+                ui.typeWriterUpdate(">>> CORE SEQUENCE INJECTED. EDGE RUNNER BONUS: +1 ¢");
+            } else {
+                ui.typeWriterUpdate(">>> CORE SEQUENCE INJECTED. RAGE MODE ACTIVATED!");
+            }
+
             if (app.bossPhaseSound != null) app.bossPhaseSound.play();
             ui.playFlashEffect(Color.RED, 500); engine.bossPhase++; startBossPhase();
         }
@@ -315,6 +324,13 @@ public class BossManager {
         if (now > engine.decryptDeadline && engine.currentBossType != HackEngine.BossType.CERBERUS) handleBossFailure("DECRYPT TIMEOUT");
         else if (engine.decryptInput.equals(engine.decryptTarget)) {
             engine.isDecryptFight = false; ui.decryptLayer.setVisible(false);
+
+            // 天賦：極限駭客 結算
+            if (engine.eventMistakes == 0 && p.talentEdgeRunner) {
+                p.legacyCoins++;
+                ui.typeWriterUpdate(">>> ENCRYPTION BROKEN. EDGE RUNNER BONUS: +1 ¢");
+            }
+
             if(engine.bossPhase >= engine.maxBossPhase) { engine.isBossFight = false; app.playLevelClearExplosion(); }
             else { engine.bossPhase++; startBossPhase(); }
         }
