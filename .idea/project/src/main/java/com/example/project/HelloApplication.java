@@ -48,6 +48,8 @@ public class HelloApplication extends Application {
     public AudioClip playerHitSound;
     public AudioClip bossFailSound;
     public AudioClip noMoneySound;
+    public TestModeManager testModeManager;
+    public boolean isDemoMode = false;
 
     @Override
     public void start(Stage stage) {
@@ -55,6 +57,7 @@ public class HelloApplication extends Application {
         ui = new UIManager(p, engine, this);
         bossManager = new BossManager(this, engine, ui, p);
         tutorialManager = new TutorialManager(this, engine, ui);
+        testModeManager = new TestModeManager(this, engine, ui);
         Scene scene = new Scene(ui.root, 800, 600); setupInputHandlers(scene); startGameLoop();
         stage.setScene(scene); stage.setTitle("Neon Breach - Override Edition"); stage.show(); ui.updateTalentUI(); ui.root.requestFocus();
     }
@@ -92,7 +95,11 @@ public class HelloApplication extends Application {
 
     public void playHoverSound() { if (hoverSound != null) { hoverSound.setVolume(getActualSfxVolume() * 0.5); hoverSound.play(); } }
     public void playClickSound() { if (clickSound != null) { clickSound.setVolume(getActualSfxVolume()); clickSound.play(); } }
-    public void playHackTickSound() { if (hackTickSound != null) { hackTickSound.setVolume(getActualSfxVolume() * 0.7); hackTickSound.play(); } }
+    public void playHackTickSound() {
+        if (hackTickSound != null) {
+            hackTickSound.setVolume(getActualSfxVolume() * 0.7); hackTickSound.play();
+        }
+    }
     public void setBgmVolume(double vol) { if (bgmPlayer != null) bgmPlayer.setVolume(vol * vol); }
     public double sfxVolume = 0.5;
     public void playErrorSound(int type) { if (type == 1 && errorSound1 != null) { errorSound1.setVolume(getActualSfxVolume()); errorSound1.play(); } else if (type == 2 && errorSound2 != null) { errorSound2.setVolume(getActualSfxVolume()); errorSound2.play(); } }
@@ -150,7 +157,8 @@ public class HelloApplication extends Application {
             if (engine.currentState == HackEngine.GameState.TUTORIAL) { tutorialManager.handleMousePress(e.getButton()); return; }
             if (engine.currentState == HackEngine.GameState.PLAYING && e.getButton() == MouseButton.PRIMARY && !engine.isFirewallFight && !engine.isInterceptFight && !engine.isDecryptFight && !engine.isBugCatchFight) {
                 engine.isHacking = true; ui.playComboHitEffect(engine.comboMultiplier);
-                playHackTickSound(); lastHackSoundTime = System.currentTimeMillis();
+                playHackTickSound();
+                lastHackSoundTime = System.currentTimeMillis();
             }
         });
         scene.setOnMouseReleased(e -> {
@@ -163,6 +171,22 @@ public class HelloApplication extends Application {
             }
         });
         scene.setOnKeyPressed(e -> {
+            if (!ui.root.isFocused()) ui.root.requestFocus();
+
+            // === Demo Zone 邏輯 ===
+            if (engine.currentState == HackEngine.GameState.DEMO_MENU) {
+                testModeManager.jumpToLevel(e.getCode());
+                return;
+            }
+            if (e.getCode() == KeyCode.F9) {
+                engine.currentState = HackEngine.GameState.DEMO_MENU;
+                ui.showDemoMenu();
+                return;
+            }
+            if (engine.currentState == HackEngine.GameState.TESTING) {
+                testModeManager.jumpToLevel(e.getCode());
+                return;
+            }
             if (!ui.root.isFocused()) ui.root.requestFocus();
             if (engine.currentState == HackEngine.GameState.TUTORIAL) { tutorialManager.handleKeyPress(e.getCode()); return; }
 
@@ -260,7 +284,19 @@ public class HelloApplication extends Application {
                 if (engine.isInterceptFight) {
                     String input = e.getText().toUpperCase();
                     if (!input.isEmpty() && engine.sequenceIndex < engine.targetSequence.length()) {
-                        String targetChar = engine.targetSequence.substring(engine.sequenceIndex, engine.sequenceIndex + 1);
+
+                        // === 【MIMIC 欺敵機制加入】 ===
+                        String targetChar = "";
+                        if (engine.currentBossType == HackEngine.BossType.MIMIC || p.currentLevel == 999) {
+                            targetChar = engine.targetSequence.substring(
+                                    engine.targetSequence.length() - 1 - engine.sequenceIndex,
+                                    engine.targetSequence.length() - engine.sequenceIndex
+                            );
+                        } else {
+                            targetChar = engine.targetSequence.substring(engine.sequenceIndex, engine.sequenceIndex + 1);
+                        }
+                        // ===========================
+
                         if (engine.isBossFight && engine.currentBossType == HackEngine.BossType.PULSE) {
                             if (input.equals(targetChar)) {
                                 long now = System.nanoTime(); long targetTime = engine.pulseLetterDeadlines[engine.sequenceIndex];
@@ -331,9 +367,19 @@ public class HelloApplication extends Application {
         Timeline timeline = new Timeline(new KeyFrame(Duration.millis(16), e -> {
             ui.drawMatrixRain();
 
-            if (engine.currentState == HackEngine.GameState.TUTORIAL) { tutorialManager.updateLoop(System.nanoTime()); return; }
+            if (engine.currentState == HackEngine.GameState.TUTORIAL) { tutorialManager.updateLoop(System.nanoTime());
+                return; }
             if (engine.currentState != HackEngine.GameState.PLAYING) return;
             long now = System.nanoTime();
+            if (this.isDemoMode) {
+                boolean eventActive = engine.isFirewallFight || engine.isInterceptFight ||
+                        engine.isDecryptFight || engine.isBugCatchFight ||
+                        engine.isBossFight;
+                if (!eventActive) {
+                    triggerLevelClear();
+                    return;
+                }
+            }
 
             if (engine.activeGlitch == HackEngine.GlitchType.VISUAL_DISTORTION) { ui.root.setTranslateX((engine.random.nextDouble() - 0.5) * 6.5); ui.root.setTranslateY((engine.random.nextDouble() - 0.5) * 6.5); if (engine.random.nextInt(15) == 0) { if (!"⚠ CRITICAL_ERROR: LINE_FRACTURE_DETECTION ⚠".equals(ui.statusLabel.getText())) ui.statusLabel.setText("⚠ CRITICAL_ERROR: LINE_FRACTURE_DETECTION ⚠"); } } else { ui.root.setTranslateX(0); ui.root.setTranslateY(0); }
 
@@ -435,6 +481,14 @@ public class HelloApplication extends Application {
     public void handleEventFailure() { engine.isInterceptFight = false; engine.isDecryptFight = false; engine.isBugCatchFight = false; ui.interceptLayer.setVisible(false); ui.decryptLayer.setVisible(false); ui.bugCatchLayer.setVisible(false); engine.progress = engine.currentSegment * (1.0 / engine.totalSegments); ui.shakeScreen(); ui.playFlashEffect(Color.rgb(255, 0, 0, 0.3), 300); ui.typeWriterUpdate(">>> PACKET LOST! CRYPTO-BARRIER COLLAPSED."); engine.dropCombo(p); }
     public void playLevelClearExplosion() { engine.currentState = HackEngine.GameState.PAUSED; engine.isHacking = false; ui.updateTraceUI(0); Timeline explosion = new Timeline(new KeyFrame(Duration.millis(50), e -> { Color randomColor = Color.color(engine.random.nextDouble(), engine.random.nextDouble(), engine.random.nextDouble()); ui.uiBorder.setTextFill(randomColor); ui.uiBorder.setEffect(new DropShadow(25, randomColor)); ui.root.setTranslateX((engine.random.nextDouble() - 0.5) * 12); ui.root.setTranslateY((engine.random.nextDouble() - 0.5) * 12); })); explosion.setCycleCount(15); explosion.setOnFinished(e -> { ui.root.setTranslateX(0); ui.root.setTranslateY(0); ui.uiBorder.setEffect(null); triggerLevelClear(); }); explosion.play(); }
     public void triggerLevelClear() {
+        if (this.isDemoMode || p.currentLevel == 999) {
+            this.isDemoMode = false;
+            p.currentLevel = 1;// 恢復等級
+            ui.gameLayer.setVisible(false);
+            engine.currentState = HackEngine.GameState.DEMO_MENU;
+            ui.showDemoMenu();                 // 顯示選單
+            return;                            // 【關鍵】這裡直接 return，不執行下面的過關邏輯
+        }
         ui.playPulseEffect(); ui.playSweepTransition(Color.LIME);
         int baseReward = engine.isBossLevel(p.currentLevel) ? 800 : (100 + p.currentLevel * 10);
         int earned = (int)(baseReward * engine.comboMultiplier * p.routeRewardMult * (1.0 + p.upgMiner * 0.15));
@@ -448,7 +502,39 @@ public class HelloApplication extends Application {
         engine.coreHeat = 0.0; engine.isOverheated = false; engine.isBeingTraced = false; engine.traceLevel = 0.0;
     }
     public void startIntroSequence() { engine.currentState = HackEngine.GameState.INTRO; ui.menuLayer.setVisible(false); ui.introLayer.setVisible(true); Label text = (Label) ui.introLayer.getChildren().get(0); String[] lines = {"WAKING UP SYSTEM...", "ACCESS GRANTED."}; Timeline introTimeline = new Timeline(); for (int i=0; i<lines.length; i++) { final int index = i; introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(0.5 * (i+1)), e -> text.setText(lines[index]))); } introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(lines.length * 0.5 + 0.5), e -> { ui.introLayer.setVisible(false); ui.gameLayer.setVisible(true); engine.currentState = HackEngine.GameState.PLAYING; engine.startNewRun(); bossManager.checkBossLevel(); })); introTimeline.play(); }
-    public void triggerGameOver(String reason) { engine.isEscapeSequence = false; ui.interceptTimeDisplay.setTextFill(Color.WHITE); if (loseSound != null) { if (loseSound.isPlaying()) loseSound.stop(); loseSound.play(); } engine.currentState = HackEngine.GameState.GAMEOVER; ui.shakeScreen(); ui.playSweepTransition(Color.RED); ui.playFlashEffect(Color.rgb(255, 0, 0, 0.4), 800); ui.updateTraceUI(0); int earnedLegacy = p.darkCoins / 10; p.legacyCoins += earnedLegacy; if (engine.runMaxCombo > p.highestCombo) p.highestCombo = engine.runMaxCombo; try { p.saveData(); } catch (Exception ex) {} ui.updateTalentUI(); String title = "SCRIPT KIDDIE"; int apm = engine.getRunAPM(); double acc = engine.getRunAccuracy(); if (p.currentLevel >= 20) title = "CYBER DEMIGOD"; else if (engine.runMaxCombo >= 3.0 && acc >= 95.0) title = "FLAWLESS GHOST"; else if (apm >= 350) title = "KEYBOARD WARRIOR"; else if (engine.runMaxCombo >= 2.5) title = "COMBO MASTER"; else if (p.currentLevel > 5) title = "NET RUNNER"; ui.showGameOverStats(reason, p.currentLevel, earnedLegacy, engine.runMaxCombo, apm, acc, title); }
+    public void triggerGameOver(String reason) {
+        if (this.isDemoMode) {
+            this.isDemoMode = false;// 關閉 Demo 模式
+            p.currentLevel = 1;
+            ui.gameLayer.setVisible(false);
+            engine.currentState = HackEngine.GameState.DEMO_MENU; // 強制回到 Demo 選單狀態
+            ui.showDemoMenu(); // 呼叫介面顯示 Demo 選單畫面
+            return; // 直接結束方法，阻止原本的死亡結算畫面
+        }
+        engine.isEscapeSequence = false;
+        ui.interceptTimeDisplay.setTextFill(Color.WHITE);
+        if (loseSound != null) {
+            if (loseSound.isPlaying()) loseSound.stop(); loseSound.play();
+        }
+        engine.currentState = HackEngine.GameState.GAMEOVER;
+        ui.shakeScreen();
+        ui.playSweepTransition(Color.RED);
+        ui.playFlashEffect(Color.rgb(255, 0, 0, 0.4), 800);
+        ui.updateTraceUI(0);
+        int earnedLegacy = p.darkCoins / 10;
+        p.legacyCoins += earnedLegacy;
+        if (engine.runMaxCombo > p.highestCombo) p.highestCombo = engine.runMaxCombo;
+        try { p.saveData(); } catch (Exception ex) {} ui.updateTalentUI();
+        String title = "SCRIPT KIDDIE";
+        int apm = engine.getRunAPM();
+        double acc = engine.getRunAccuracy();
+        if (p.currentLevel >= 20) title = "CYBER DEMIGOD";
+        else if (engine.runMaxCombo >= 3.0 && acc >= 95.0) title = "FLAWLESS GHOST";
+        else if (apm >= 350) title = "KEYBOARD WARRIOR";
+        else if (engine.runMaxCombo >= 2.5) title = "COMBO MASTER";
+        else if (p.currentLevel > 5) title = "NET RUNNER";
+        ui.showGameOverStats(reason, p.currentLevel, earnedLegacy, engine.runMaxCombo, apm, acc, title);
+    }
 
     public void selectTalentNode(int branchId, int level) {
         this.selectedBranch = branchId; this.selectedLevel = level;

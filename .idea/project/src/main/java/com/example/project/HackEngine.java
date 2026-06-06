@@ -3,7 +3,8 @@ package com.example.project;
 import java.util.Random;
 
 public class HackEngine {
-    public enum GameState { MAIN_MENU, ROUTE_SELECT, SHOP, TALENT_TREE, PLAYING, PAUSED, GAMEOVER, INTRO, TUTORIAL }
+    public enum GameState { MAIN_MENU, ROUTE_SELECT, SHOP, TALENT_TREE, PLAYING, PAUSED, GAMEOVER, INTRO,
+        TUTORIAL,TESTING, DEMO_MENU }
     public enum GlitchType { NONE, NETWORK_LAG, VISUAL_DISTORTION, CORE_OVERLOAD }
     public enum BossType { NONE, PULSE, SURGE, PHANTOM, CERBERUS, ARCHITECT, MIMIC, HYDRA, SPECTER, NULL_GOD }
 
@@ -102,6 +103,12 @@ public class HackEngine {
     public double comboMultiplier = 1.0;
     public int comboFrames = 0;
     private long runStartTime = 0;
+    public void startFirewallEvent() { isFirewallFight = true; firewallProgress = 0.5; }
+    public void startInterceptEvent() { startInterceptEvent(new PlayerStats(), System.nanoTime()); }
+    public void startDecryptEvent() { startDecryptEvent(new PlayerStats(), System.nanoTime()); }
+    public void startBugCatchEvent() { startBugCatchEvent(new PlayerStats(), System.nanoTime()); }
+    public void startBossPulse() { currentBossType = BossType.PULSE; bossPhase = 1; }
+    public void startBossSurge() { currentBossType = BossType.SURGE; bossPhase = 1; }
 
     public void startNewRun() {
         progress = 0.0; currentSegment = 0; isHacking = false; isBeingTraced = false; traceLevel = 0.0;
@@ -147,9 +154,9 @@ public class HackEngine {
         if (level % 5 != 0) return BossType.NONE;
         if (level == 5) return BossType.PULSE;
         if (level == 10) return BossType.SURGE;
-        if (level == 15) return BossType.CERBERUS;
+        if (level == 15) return BossType.MIMIC;
         if (level == 20) return BossType.ARCHITECT;
-        if (level == 25) return BossType.MIMIC;
+        if (level == 25) return BossType.CERBERUS;
         if (level == 30) return BossType.HYDRA;
         if (level == 35) return BossType.SPECTER;
         return BossType.NULL_GOD;
@@ -252,21 +259,30 @@ public class HackEngine {
 
     public void startInterceptEvent(PlayerStats p, long now) {
         isInterceptFight = true; sequenceIndex = 0; eventMistakes = 0;
-        if(p.talentErrorCorrect) errorCorrectCharges = 2; // 天賦：防呆協議
+        if(p.talentErrorCorrect) errorCorrectCharges = 2;
         int len = 4 + (p.currentLevel / 3);
         String[] dirs = {"W", "A", "S", "D"}; StringBuilder sb = new StringBuilder();
         for (int i=0; i<len; i++) sb.append(dirs[random.nextInt(4)]);
-        targetSequence = sb.toString(); displaySequence = targetSequence;
+        targetSequence = sb.toString();
+        displaySequence = targetSequence;
+        // 如果目前是 MIMIC 戰，故意把玩家畫面上顯示的提示字串反轉，達到欺敵效果
+        if (currentBossType == BossType.MIMIC || p.currentLevel == 999) {
+            displaySequence = new StringBuilder(targetSequence).reverse().toString();
+        }
         double time = 4.0 - (p.currentLevel * 0.05); if(time < 1.5) time = 1.5;
         if (activeGlitch == GlitchType.NETWORK_LAG) time *= 0.6;
         interceptDeadline = now + (long)(time * 1_000_000_000L);
     }
     public void startDecryptEvent(PlayerStats p, long now) {
         isDecryptFight = true; decryptInput = ""; isDecryptFlashed = false; eventMistakes = 0;
-        if(p.talentErrorCorrect) errorCorrectCharges = 2; // 天賦：防呆協議
+        if(p.talentErrorCorrect) errorCorrectCharges = 2;
         int len = 4 + (p.currentLevel / 4);
         StringBuilder sb = new StringBuilder(); for(int i=0; i<len; i++) sb.append((char)(random.nextInt(26) + 'A'));
         decryptTarget = sb.toString();
+        // 如果是 MIMIC 戰，玩家必須反過來輸入才算對，所以我們把底層的比對目標直接反轉
+        if (currentBossType == BossType.MIMIC || p.currentLevel == 999) {
+            decryptTarget = new StringBuilder(decryptTarget).reverse().toString();
+        }
         double flashTime = 1.2 + (p.talentFlashTime * 0.15) - (p.currentLevel * 0.03); if(flashTime < 0.4) flashTime = 0.4;
         decryptFlashEndTime = now + (long)(flashTime * 1_000_000_000L);
         double totalTime = 5.0 - (p.currentLevel * 0.05); if(totalTime < 2.5) totalTime = 2.5;

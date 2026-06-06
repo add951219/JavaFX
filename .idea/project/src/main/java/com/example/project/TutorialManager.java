@@ -151,7 +151,8 @@ public class TutorialManager {
     public void updateLoop(long now) {
         if (tutorialStep == 1 && engine.isHacking) {
             tutorialProgress += 0.004;
-            ui.updateTutorialUI(">>> 課程 1：基礎駭入\n按住 [滑鼠左鍵] 不放，來推進一般節點的駭入進度。", "進度: " + (int)(tutorialProgress * 100) + "%");
+            ui.updateTutorialUI(">>> 課程 1：基礎駭入\n按住 [滑鼠左鍵] 不放，來推進一般節點的駭入進度。", "進度: "
+                    + (int)(tutorialProgress * 100) + "%");
             if (tutorialProgress >= 1.0) {
                 engine.isHacking = false;
                 tutorialStep = 2;
@@ -162,7 +163,8 @@ public class TutorialManager {
                 ui.shakeScreen();
                 ui.playFlashEffect(Color.LIME, 500);
 
-                ui.updateTutorialUI(">>> 課程 2：突破防火牆\n遇到防火牆時，連打 [空白鍵] 來擊破防禦！\n注意下方的熱量警告，快滿時必須停手。", getFirewallStr());
+                ui.updateTutorialUI(">>> 課程 2：突破防火牆\n遇到防火牆時，連打 [空白鍵] 來擊破防禦！" +
+                        "\n注意下方的熱量警告，快滿時必須停手。", getFirewallStr());
             }
         }
 

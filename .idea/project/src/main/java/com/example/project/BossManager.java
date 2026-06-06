@@ -95,11 +95,16 @@ public class BossManager {
 
         // === 一般 Boss ===
         if (engine.bossPhase == 1) {
-            engine.isFirewallFight = true; ui.firewallLayer.setVisible(true); engine.firewallProgress = 0.2 + (p.talentWeakFW * 0.05);
-            if (engine.currentBossType == HackEngine.BossType.CERBERUS) engine.cerberusGlobalDeadline = now + (long)(35.0 * 1_000_000_000L);
-            if (engine.currentBossType == HackEngine.BossType.MIMIC) { engine.isMimicWindow = true; engine.mimicToggleTime = now + 1_500_000_000L; }
-            if (engine.currentBossType == HackEngine.BossType.HYDRA) { engine.hydraWalls = new double[]{0.3, 0.3, 0.3}; engine.activeHydraHead = 0; }
-            if (engine.currentBossType == HackEngine.BossType.NULL_GOD) { engine.isBeingTraced = true; engine.traceLevel = 0.0; }
+            engine.isFirewallFight = true; ui.firewallLayer.setVisible(true); engine.firewallProgress = 0.2 +
+                    (p.talentWeakFW * 0.05);
+            if (engine.currentBossType == HackEngine.BossType.CERBERUS) engine.cerberusGlobalDeadline = now +
+                    (long)(35.0 * 1_000_000_000L);
+            if (engine.currentBossType == HackEngine.BossType.MIMIC) { engine.isMimicWindow = true;
+                engine.mimicToggleTime = now + 1_500_000_000L; }
+            if (engine.currentBossType == HackEngine.BossType.HYDRA) { engine.hydraWalls = new double[]{0.3, 0.3, 0.3};
+                engine.activeHydraHead = 0; }
+            if (engine.currentBossType == HackEngine.BossType.NULL_GOD) { engine.isBeingTraced = true;
+                engine.traceLevel = 0.0; }
         }
         else if (engine.bossPhase == 2) {
             engine.isInterceptFight = true; engine.sequenceIndex = 0; engine.eventMistakes = 0; int len = 8 + (p.currentLevel / 3);
@@ -167,9 +172,20 @@ public class BossManager {
             handleSurgeLoop(now); return;
         }
 
-        if (engine.isFirewallFight) handleFirewallLoop(now);
-        else if (engine.isInterceptFight) handleInterceptLoop(now);
-        else if (engine.isDecryptFight) handleDecryptLoop(now);
+        if (engine.isFirewallFight) {
+            ui.firewallLayer.setVisible(true);
+            handleFirewallLoop(now);
+        }
+        else if (engine.isInterceptFight) {
+            ui.interceptLayer.setVisible(true); // 強制顯示
+            ui.interceptLayer.toFront();        // 強制拉到最上層
+            handleInterceptLoop(now);
+        }
+        else if (engine.isDecryptFight) {
+            ui.decryptLayer.setVisible(true);   // 強制顯示
+            ui.decryptLayer.toFront();          // 強制拉到最上層
+            handleDecryptLoop(now);
+        }
     }
 
     // === SURGE 專屬執行迴圈 ===
@@ -177,42 +193,47 @@ public class BossManager {
         double elapsed = (now - engine.surgeStartTime) / 1_000_000_000.0;
         engine.updateSurgeHeal(elapsed);
 
+        // 使用 if-else 結構，確保編譯器能明確區分流程
         if (elapsed >= 90.0) {
             // 撐過 90 秒，直接過關！
-            engine.isSurgeFight = false; engine.isBossFight = false; ui.surgeLayer.setVisible(false);
+            engine.isSurgeFight = false;
+            engine.isBossFight = false;
+            ui.surgeLayer.setVisible(false);
             app.playLevelClearExplosion();
-            return;
-        }
-
-        // 生成新攻擊
-        if (now > engine.surgeNextAttackTime) {
-            engine.generateSurgeAttack(elapsed, now);
-        }
-
-        // 預警結束，準備引爆
-        if (engine.surgeWarnEndTime != 0 && now > engine.surgeWarnEndTime) {
-            if (!engine.isSurgeFakeOut) {
-                // 真爆炸
-                for (int i=0; i<5; i++) engine.surgeExplosions[i] = engine.surgeWarnings[i];
-                if (engine.surgeExplosions[engine.surgePlayerPos]) {
-                    engine.surgeHP--; app.playPlayerHitSound(); ui.shakeScreen(); ui.playFlashEffect(Color.RED, 300);
-                }
+        } else {
+            // 只有沒過關時，才執行攻擊邏輯
+            if (now > engine.surgeNextAttackTime) {
+                engine.generateSurgeAttack(elapsed, now);
             }
-            for(int i=0; i<5; i++) engine.surgeWarnings[i] = false;
-            engine.surgeWarnEndTime = 0;
-            engine.surgeExplodeEndTime = now + 150_000_000L; // 爆炸視覺殘留 0.15 秒
-        }
 
-        // 引爆結束，清空畫面
-        if (engine.surgeExplodeEndTime != 0 && now > engine.surgeExplodeEndTime) {
-            for(int i=0; i<5; i++) engine.surgeExplosions[i] = false;
-            engine.surgeExplodeEndTime = 0;
-        }
+            // 預警結束，準備引爆
+            if (engine.surgeWarnEndTime != 0 && now > engine.surgeWarnEndTime) {
+                if (!engine.isSurgeFakeOut) {
+                    // 真爆炸
+                    for (int i=0; i<5; i++) engine.surgeExplosions[i] = engine.surgeWarnings[i];
+                    if (engine.surgeExplosions[engine.surgePlayerPos]) {
+                        engine.surgeHP--;
+                        app.playPlayerHitSound();
+                        ui.shakeScreen();
+                        ui.playFlashEffect(Color.RED, 300);
+                    }
+                }
+                for(int i=0; i<5; i++) engine.surgeWarnings[i] = false;
+                engine.surgeWarnEndTime = 0;
+                engine.surgeExplodeEndTime = now + 150_000_000L;
+            }
 
-        ui.updateSurgeUI(elapsed);
+            // 引爆結束，清空畫面
+            if (engine.surgeExplodeEndTime != 0 && now > engine.surgeExplodeEndTime) {
+                for(int i=0; i<5; i++) engine.surgeExplosions[i] = false;
+                engine.surgeExplodeEndTime = 0;
+            }
 
-        if (engine.surgeHP <= 0) {
-            handleBossFailure("SURGE OVERWHELM: CRITICAL DAMAGE");
+            ui.updateSurgeUI(elapsed);
+
+            if (engine.surgeHP <= 0) {
+                handleBossFailure("SURGE OVERWHELM: CRITICAL DAMAGE");
+            }
         }
     }
 
