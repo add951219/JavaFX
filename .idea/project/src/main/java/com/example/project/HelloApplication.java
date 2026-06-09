@@ -208,6 +208,43 @@ public class HelloApplication extends Application {
                 }
             }
 
+            if (e.getCode() == KeyCode.F7) {
+                // F7：完全初始所有東西，包括局外天賦、金幣、最高紀錄
+                p.legacyCoins = 0;
+                p.highScore = 0;
+                p.highestCombo = 1.0;
+
+                // 重置所有天賦
+                p.talentStartEMP = 0; p.talentWeakFW = 0; p.talentFlashTime = 0; p.talentSignalShield = 0;
+                p.talentErrorCorrect = false; p.talentComboGuard = false; p.talentGlitchImmune = false;
+                p.talentOverdrive = false; p.talentEdgeRunner = false; p.talentTrojanSplit = false;
+                p.talentHeatDump = false; p.talentBugZapper = false; p.talentIntuition = false;
+
+                // 重置局內資源與設定儲存檔
+                p.reset();
+                try { p.saveData(); } catch(Exception ex) {}
+
+                // 更新畫面顯示
+                ui.updateShopUI();
+                ui.updateTalentUI();
+                ui.updateFirewallUI();
+                if (engine.currentState == HackEngine.GameState.PLAYING) {
+                    ui.typeWriterUpdate("[DEBUG_MODE] COMPLETE WIPE SUCCESSFUL.");
+                }
+            }
+
+            if (e.getCode() == KeyCode.F8) {
+                // F8：一鍵獲得極大量金幣與永久貨幣 (突破上限)
+                p.darkCoins += 9999999;
+                p.legacyCoins += 999999;
+
+                ui.updateShopUI();
+                ui.updateTalentUI();
+                if (engine.currentState == HackEngine.GameState.PLAYING) {
+                    ui.typeWriterUpdate("[DEBUG_MODE] UNLIMITED WEALTH ACTIVATED.");
+                }
+            }
+
             if (e.getCode() == KeyCode.TAB && engine.isBossFight && engine.currentBossType == HackEngine.BossType.HYDRA && engine.bossPhase == 1) { engine.activeHydraHead = (engine.activeHydraHead + 1) % 3; ui.updateFirewallUI(); e.consume(); return; }
 
             if (engine.currentState == HackEngine.GameState.PLAYING) {
@@ -275,7 +312,10 @@ public class HelloApplication extends Application {
                         if(engine.isBossFight && engine.currentBossType == HackEngine.BossType.HYDRA) engine.hydraWalls[engine.activeHydraHead] += dmgBase;
                         else engine.firewallProgress += dmgBase;
 
-                        engine.coreHeat += Math.max(0.01, 0.025 - (p.upgCoolant * 0.002));
+                        // ====== 【修改 1】： 大幅增加每次按空白鍵時提升的熱量 ======
+                        // 將原本的 0.025 提升至 0.08 (基礎值更高，過熱風險增加)
+                        engine.coreHeat += Math.max(0.02, 0.08 - (p.upgCoolant * 0.005));
+
                         if (engine.coreHeat >= 1.0) { engine.isOverheated = true; engine.overheatEndTime = System.nanoTime() + 800_000_000L; playErrorSound(1); ui.shakeScreen(); ui.playFlashEffect(Color.RED, 250); engine.dropCombo(p); }
                         ui.updateFirewallUI(); ui.playFirewallSpacePopEffect(); ui.playComboHitEffect(engine.comboMultiplier);
                     }
@@ -386,8 +426,10 @@ public class HelloApplication extends Application {
             if (engine.isBossFight && !engine.isEscapeSequence) { bossManager.updateBossLoop(now); ui.updateASCIIProgress(); return; }
 
             if (engine.isFirewallFight) {
+                // ====== 【修改 2】： 加快自然散熱的速度 ======
                 if (engine.isOverheated) { if (now > engine.overheatEndTime) { engine.isOverheated = false; engine.coreHeat = 0.0; } }
-                else { engine.coreHeat = Math.max(0, engine.coreHeat - 0.005); }
+                else { engine.coreHeat = Math.max(0, engine.coreHeat - 0.01); } // 從 0.001 提升到 0.006 (降得也快)
+
                 double drainRate = (0.003 + (p.currentLevel * p.routeDiffMult * 0.0008)); if (engine.isOverheated) drainRate *= 0.15;
                 engine.firewallProgress -= drainRate; ui.updateFirewallUI();
                 if (engine.firewallProgress <= 0) triggerGameOver(">>> BLOCKED <<<");
