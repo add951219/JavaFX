@@ -70,6 +70,13 @@ public class UIManager {
         initVisualEffects(); buildVisuals();
     }
 
+    // ===== 供外部呼叫的橋接方法 =====
+    public void playPassSound() {
+        if (app != null) {
+            app.playPassSound();
+        }
+    }
+
     private void initVisualEffects() {
         neonGlowCyan = new DropShadow(); neonGlowCyan.setColor(Color.rgb(0, 255, 204, 0.8)); neonGlowCyan.setRadius(15); neonGlowCyan.setSpread(0.2);
         neonGlowPink = new DropShadow(); neonGlowPink.setColor(Color.rgb(255, 0, 127, 0.8)); neonGlowPink.setRadius(15); neonGlowPink.setSpread(0.2);
@@ -403,14 +410,14 @@ public class UIManager {
         root.getChildren().add(demoMenuPane);
     }
 
-        public void showDemoMenu() {
-            menuLayer.setVisible(false); // 隱藏原本的主選單
-            demoMenuPane.setVisible(true); // 顯示 Demo 專屬畫面
-        }
+    public void showDemoMenu() {
+        menuLayer.setVisible(false); // 隱藏原本的主選單
+        demoMenuPane.setVisible(true); // 顯示 Demo 專屬畫面
+    }
 
-        public void hideDemoMenu() {
-            demoMenuPane.setVisible(false);
-        }
+    public void hideDemoMenu() {
+        demoMenuPane.setVisible(false);
+    }
 
 
     private void buildBossLayers() {

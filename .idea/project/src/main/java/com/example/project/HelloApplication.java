@@ -34,7 +34,7 @@ public class HelloApplication extends Application {
 
     private AudioClip errorSound1, errorSound2, loseSound;
     private AudioClip gunshotSound, pictureHitSound;
-    public AudioClip bossIntroSound, bossPhaseSound;
+    public AudioClip bossIntroSound, bossPhaseSound, passSound; // 新增 passSound
 
     private MediaPlayer bgmPlayer;
     private AudioClip hackTickSound;
@@ -91,10 +91,12 @@ public class HelloApplication extends Application {
         try { bossFailSound = new AudioClip(getClass().getResource("/boss_fail.mp3").toExternalForm()); } catch (Exception e) {}
         try { Media bgmMedia = new Media(getClass().getResource("/bgm.mp3").toExternalForm()); bgmPlayer = new MediaPlayer(bgmMedia); bgmPlayer.setCycleCount(MediaPlayer.INDEFINITE); bgmPlayer.setVolume(0.25); bgmPlayer.play(); } catch (Exception e) {}
         try { noMoneySound = new AudioClip(getClass().getResource("/no_money.mp3").toExternalForm()); } catch (Exception e) {}
+        try { passSound = new AudioClip(getClass().getResource("/pass.mp3").toExternalForm()); } catch (Exception e) {} // 載入過關音效
     }
 
     public void playHoverSound() { if (hoverSound != null) { hoverSound.setVolume(getActualSfxVolume() * 0.5); hoverSound.play(); } }
     public void playClickSound() { if (clickSound != null) { clickSound.setVolume(getActualSfxVolume()); clickSound.play(); } }
+    public void playPassSound() { if (passSound != null) { passSound.setVolume(getActualSfxVolume()); passSound.play(); } } // 播放過關音效方法
     public void playHackTickSound() {
         if (hackTickSound != null) {
             hackTickSound.setVolume(getActualSfxVolume() * 0.7); hackTickSound.play();
@@ -108,6 +110,7 @@ public class HelloApplication extends Application {
         if (bossIntroSound != null) bossIntroSound.setVolume(actualVol); if (bossPhaseSound != null) bossPhaseSound.setVolume(actualVol);
         if (loseSound != null) loseSound.setVolume(actualVol); if (playerHitSound != null) playerHitSound.setVolume(actualVol);
         if (bossFailSound != null) bossFailSound.setVolume(actualVol); if (noMoneySound != null) noMoneySound.setVolume(actualVol);
+        if (passSound != null) passSound.setVolume(actualVol); // 同步音量設定
     }
 
     public void playSuccessSound() {
@@ -521,8 +524,30 @@ public class HelloApplication extends Application {
     }
 
     public void handleEventFailure() { engine.isInterceptFight = false; engine.isDecryptFight = false; engine.isBugCatchFight = false; ui.interceptLayer.setVisible(false); ui.decryptLayer.setVisible(false); ui.bugCatchLayer.setVisible(false); engine.progress = engine.currentSegment * (1.0 / engine.totalSegments); ui.shakeScreen(); ui.playFlashEffect(Color.rgb(255, 0, 0, 0.3), 300); ui.typeWriterUpdate(">>> PACKET LOST! CRYPTO-BARRIER COLLAPSED."); engine.dropCombo(p); }
-    public void playLevelClearExplosion() { engine.currentState = HackEngine.GameState.PAUSED; engine.isHacking = false; ui.updateTraceUI(0); Timeline explosion = new Timeline(new KeyFrame(Duration.millis(50), e -> { Color randomColor = Color.color(engine.random.nextDouble(), engine.random.nextDouble(), engine.random.nextDouble()); ui.uiBorder.setTextFill(randomColor); ui.uiBorder.setEffect(new DropShadow(25, randomColor)); ui.root.setTranslateX((engine.random.nextDouble() - 0.5) * 12); ui.root.setTranslateY((engine.random.nextDouble() - 0.5) * 12); })); explosion.setCycleCount(15); explosion.setOnFinished(e -> { ui.root.setTranslateX(0); ui.root.setTranslateY(0); ui.uiBorder.setEffect(null); triggerLevelClear(); }); explosion.play(); }
+    public void playLevelClearExplosion() {
+        playPassSound(); // ===== [修改重點] 移到這裡：綠色條一滿，準備開始閃爍特效前就立刻播放音效 =====
+
+        engine.currentState = HackEngine.GameState.PAUSED;
+        engine.isHacking = false;
+        ui.updateTraceUI(0);
+        Timeline explosion = new Timeline(new KeyFrame(Duration.millis(50), e -> {
+            Color randomColor = Color.color(engine.random.nextDouble(), engine.random.nextDouble(), engine.random.nextDouble());
+            ui.uiBorder.setTextFill(randomColor);
+            ui.uiBorder.setEffect(new DropShadow(25, randomColor));
+            ui.root.setTranslateX((engine.random.nextDouble() - 0.5) * 12);
+            ui.root.setTranslateY((engine.random.nextDouble() - 0.5) * 12);
+        }));
+        explosion.setCycleCount(15);
+        explosion.setOnFinished(e -> {
+            ui.root.setTranslateX(0); ui.root.setTranslateY(0); ui.uiBorder.setEffect(null);
+            triggerLevelClear();
+        });
+        explosion.play();
+    }
+
     public void triggerLevelClear() {
+        // ===== [修改重點] 已經將 playPassSound(); 從這裡移除，避免重複播放兩次 =====
+
         if (this.isDemoMode || p.currentLevel == 999) {
             this.isDemoMode = false;
             p.currentLevel = 1;// 恢復等級
@@ -543,6 +568,7 @@ public class HelloApplication extends Application {
         engine.currentState = HackEngine.GameState.ROUTE_SELECT; ui.routeLayer.setVisible(true);
         engine.coreHeat = 0.0; engine.isOverheated = false; engine.isBeingTraced = false; engine.traceLevel = 0.0;
     }
+
     public void startIntroSequence() { engine.currentState = HackEngine.GameState.INTRO; ui.menuLayer.setVisible(false); ui.introLayer.setVisible(true); Label text = (Label) ui.introLayer.getChildren().get(0); String[] lines = {"WAKING UP SYSTEM...", "ACCESS GRANTED."}; Timeline introTimeline = new Timeline(); for (int i=0; i<lines.length; i++) { final int index = i; introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(0.5 * (i+1)), e -> text.setText(lines[index]))); } introTimeline.getKeyFrames().add(new KeyFrame(Duration.seconds(lines.length * 0.5 + 0.5), e -> { ui.introLayer.setVisible(false); ui.gameLayer.setVisible(true); engine.currentState = HackEngine.GameState.PLAYING; engine.startNewRun(); bossManager.checkBossLevel(); })); introTimeline.play(); }
     public void triggerGameOver(String reason) {
         if (this.isDemoMode) {
